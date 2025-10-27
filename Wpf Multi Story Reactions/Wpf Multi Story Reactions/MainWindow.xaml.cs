@@ -186,20 +186,29 @@ namespace MultiStoryReactions
         {
             canvas.Children.Clear();
 
-            // Draw grid
+            // --- 1. Draw grid ---
             for (int i = 0; i <= canvas.Width; i += gridSize)
                 canvas.Children.Add(new Line { X1 = i, Y1 = 0, X2 = i, Y2 = canvas.Height, Stroke = Brushes.LightGray, StrokeThickness = 1 });
             for (int j = 0; j <= canvas.Height; j += gridSize)
                 canvas.Children.Add(new Line { X1 = 0, Y1 = j, X2 = canvas.Width, Y2 = j, Stroke = Brushes.LightGray, StrokeThickness = 1 });
 
-            // Draw members for this floor
+            // --- 2. Draw underlying floors (ghosted) ---
+            for (int f = 0; f < floor; f++)
+            {
+                foreach (var underMember in _building.GetMembersForFloor(f))
+                {
+                    DrawMemberOnCanvas(canvas, underMember, isUnderlay: true);
+                }
+            }
+
+            // --- 3. Draw this floor’s members (normal) ---
             foreach (var m in _building.GetMembersForFloor(floor))
             {
-                DrawMemberOnCanvas(canvas, m);
+                DrawMemberOnCanvas(canvas, m, isUnderlay: false);
             }
         }
 
-        private void DrawMemberOnCanvas(Canvas canvas, StructuralMember m)
+        private void DrawMemberOnCanvas(Canvas canvas, StructuralMember m, bool isUnderlay = false)
         {
             Brush color = m.Type switch
             {
@@ -211,6 +220,16 @@ namespace MultiStoryReactions
                 _ => Brushes.Black
             };
 
+            if (isUnderlay)
+            {
+                // Fade and lighten
+                SolidColorBrush faded = new SolidColorBrush(((SolidColorBrush)color).Color)
+                {
+                    Opacity = 0.3
+                };
+                color = faded;
+            }
+
             Line line = new Line
             {
                 X1 = m.StartNodePos.X,
@@ -218,16 +237,20 @@ namespace MultiStoryReactions
                 X2 = m.EndNodePos.X,
                 Y2 = m.EndNodePos.Y,
                 Stroke = color,
-                StrokeThickness = 4,
+                StrokeThickness = isUnderlay ? 2 : 4,
                 StrokeDashArray = m.IsCantilever ? new DoubleCollection { 4, 2 } : null,
-                ToolTip = $"{m.Id} ({m.Type})"
+                ToolTip = $"{m.Id} ({m.Type})" + (isUnderlay ? " [Underlay]" : "")
             };
             canvas.Children.Add(line);
 
-            // Draw nodes
-            DrawNode(canvas, m.StartNodePos, m, true);
-            DrawNode(canvas, m.EndNodePos, m, false);
+            // For clarity, don't draw nodes for underlays
+            if (!isUnderlay)
+            {
+                DrawNode(canvas, m.StartNodePos, m, true);
+                DrawNode(canvas, m.EndNodePos, m, false);
+            }
         }
+
 
         private void DrawNode(Canvas canvas, Point pos, StructuralMember member, bool isStart)
         {
