@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -6,267 +7,295 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
-namespace MultiStoryReactions
+namespace StructuralPlanner
 {
     public partial class MainWindow : Window
     {
-        private BuildingModel _building = new BuildingModel();
-        private int gridSize = 50; // Plan grid snapping
+        // --- Data Models ---
+        public enum MemberType { Beam, Column }
 
-        // Drag-and-drop
-        private bool isDragging = false;
-        private Ellipse selectedNode = null;
-        private Point mouseOffset;
+        public class StructuralMember
+        {
+            public MemberType Type { get; set; }
+            public Point Start { get; set; }
+            public Point End { get; set; }
+            public int Floor { get; set; }    // 0 = Floor1, 1 = Floor2, 2 = Roof
+        }
 
-        // Interactive placement
-        private bool isPlacingMember = false;
-        private StructuralMember placingMember;
+        private List<StructuralMember> Members = new List<StructuralMember>();
+        private int currentFloor = 0; // 0=Floor1, 1=Floor2, 2=Roof
+
+        // --- Drawing state ---
+        private Point? pendingStartPoint = null;
+        private bool addingBeam = false;
+        private bool addingColumn = false;
+
+        // --- Constants ---
+        private const double floorHeight = 200; // Visual vertical spacing between floors
 
         public MainWindow()
         {
             InitializeComponent();
-            MemberGrid.ItemsSource = _building.Members;
-
-            // Attach mouse events for all canvases
-            Floor1Canvas.MouseLeftButtonDown += Canvas_MouseLeftButtonDown;
-            Floor1Canvas.MouseMove += Canvas_MouseMove;
-            Floor1Canvas.MouseLeftButtonUp += Canvas_MouseLeftButtonUp;
-
-            Floor2Canvas.MouseLeftButtonDown += Canvas_MouseLeftButtonDown;
-            Floor2Canvas.MouseMove += Canvas_MouseMove;
-            Floor2Canvas.MouseLeftButtonUp += Canvas_MouseLeftButtonUp;
-
-            RoofCanvas.MouseLeftButtonDown += Canvas_MouseLeftButtonDown;
-            RoofCanvas.MouseMove += Canvas_MouseMove;
-            RoofCanvas.MouseLeftButtonUp += Canvas_MouseLeftButtonUp;
+            RedrawAll();
         }
 
-        #region Button Handlers
+        // ==============================================================
+        // FLOOR SWITCHING
+        // ==============================================================
 
-        private void BtnAddMember_Click(object sender, RoutedEventArgs e)
+        private void Floor1Button_Click(object sender, RoutedEventArgs e)
         {
-            isPlacingMember = true;
-            placingMember = new StructuralMember
-            {
-                Type = MemberType.Beam,
-                IsCantilever = false,
-                UniformLoad = 1.0,
-                Floor = FloorTabs.SelectedIndex // Floor determined by active tab
-            };
-            TxtResults.Text = "Click on canvas to set START node of the member.";
+            currentFloor = 0;
+            RedrawAll();
         }
 
-        private void BtnRemoveMember_Click(object sender, RoutedEventArgs e)
+        private void Floor2Button_Click(object sender, RoutedEventArgs e)
         {
-            if (MemberGrid.SelectedItem is StructuralMember selected)
+            currentFloor = 1;
+            RedrawAll();
+        }
+
+        private void RoofButton_Click(object sender, RoutedEventArgs e)
+        {
+            currentFloor = 2;
+            RedrawAll();
+        }
+
+        // ==============================================================
+        // ADDING MEMBERS
+        // ==============================================================
+
+        private void AddBeamButton_Click(object sender, RoutedEventArgs e)
+        {
+            addingBeam = true;
+            addingColumn = false;
+            pendingStartPoint = null;
+            Mouse.OverrideCursor = Cursors.Cross;
+        }
+
+        private void AddColumnButton_Click(object sender, RoutedEventArgs e)
+        {
+            addingBeam = false;
+            addingColumn = true;
+            pendingStartPoint = null;
+            Mouse.OverrideCursor = Cursors.Cross;
+        }
+
+        private void ClearButton_Click(object sender, RoutedEventArgs e)
+        {
+            Members.Clear();
+            pendingStartPoint = null;
+            RedrawAll();
+        }
+
+        private void ComputeReactionsButton_Click(object sender, RoutedEventArgs e)
+        {
+            MessageBox.Show("Reaction computation placeholder. (Future implementation)");
+        }
+
+        private void ShowColumnsButton_Click(object sender, RoutedEventArgs e)
+        {
+            // Simply toggle a redraw (in future can toggle visibility state)
+            RedrawAll();
+        }
+
+        // ==============================================================
+        // CANVAS INTERACTION
+        // ==============================================================
+
+        private void MainCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            Point click = e.GetPosition(MainCanvas);
+
+            if (addingBeam)
             {
-                _building.Members.Remove(selected);
-                MemberGrid.Items.Refresh();
-                DrawAllFloors();
+                HandleAddBeam(click);
+            }
+            else if (addingColumn)
+            {
+                HandleAddColumn(click);
             }
         }
 
-        private void BtnCompute_Click(object sender, RoutedEventArgs e)
+        private void HandleAddBeam(Point click)
         {
-            _building.ComputeReactions();
-            MemberGrid.Items.Refresh();
-            TxtResults.Text = _building.GetReactionSummary();
-            DrawAllFloors();
-        }
-
-        #endregion
-
-        #region Canvas Placement & Drag-Drop
-
-        private void Canvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            Canvas canvas = sender as Canvas;
-            Point clickPos = e.GetPosition(canvas);
-
-            if (isPlacingMember)
+            if (pendingStartPoint == null)
             {
-                // Snap to grid
-                double snappedX = Math.Round(clickPos.X / gridSize) * gridSize;
-                double snappedY = Math.Round(clickPos.Y / gridSize) * gridSize;
-                Point snappedPoint = new Point(snappedX, snappedY);
-
-                if (placingMember.StartNodePos == default(Point))
+                pendingStartPoint = click;
+            }
+            else
+            {
+                var newMember = new StructuralMember
                 {
-                    placingMember.StartNodePos = snappedPoint;
-                    TxtResults.Text = "Click on canvas to set END node of the member.";
-                }
-                else
-                {
-                    placingMember.EndNodePos = snappedPoint;
-
-                    _building.Members.Add(placingMember);
-                    MemberGrid.Items.Refresh();
-                    DrawAllFloors();
-
-                    isPlacingMember = false;
-                    placingMember = null;
-                    TxtResults.Text = "Member added. Select 'Add Member' to place another.";
-                }
-            }
-        }
-
-        private void Node_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-        {
-            selectedNode = sender as Ellipse;
-            if (selectedNode != null)
-            {
-                isDragging = true;
-                Canvas canvas = GetCanvasForNode(selectedNode);
-                Point mousePos = e.GetPosition(canvas);
-                mouseOffset = new Point(mousePos.X - Canvas.GetLeft(selectedNode),
-                                        mousePos.Y - Canvas.GetTop(selectedNode));
-                selectedNode.CaptureMouse();
-            }
-        }
-
-        private void Canvas_MouseMove(object sender, MouseEventArgs e)
-        {
-            if (isDragging && selectedNode != null)
-            {
-                Canvas canvas = GetCanvasForNode(selectedNode);
-                Point mousePos = e.GetPosition(canvas);
-
-                double snappedX = Math.Round((mousePos.X - mouseOffset.X + 5) / gridSize) * gridSize;
-                double snappedY = Math.Round((mousePos.Y - mouseOffset.Y + 5) / gridSize) * gridSize;
-
-                Canvas.SetLeft(selectedNode, snappedX - 5);
-                Canvas.SetTop(selectedNode, snappedY - 5);
-
-                var (member, isStart) = ((StructuralMember, bool))selectedNode.Tag;
-                Point newPos = new Point(snappedX, snappedY);
-
-                if (isStart)
-                    member.StartNodePos = newPos;
-                else
-                    member.EndNodePos = newPos;
-
-                DrawAllFloors();
-            }
-        }
-
-        private void Canvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
-        {
-            if (isDragging && selectedNode != null)
-            {
-                selectedNode.ReleaseMouseCapture();
-                isDragging = false;
-                selectedNode = null;
-            }
-        }
-
-        private Canvas GetCanvasForNode(Ellipse node)
-        {
-            var (member, _) = ((StructuralMember, bool))node.Tag;
-            return member.Floor switch
-            {
-                0 => Floor1Canvas,
-                1 => Floor2Canvas,
-                2 => RoofCanvas,
-                _ => Floor1Canvas
-            };
-        }
-
-        #endregion
-
-        #region Drawing
-
-        private void DrawAllFloors()
-        {
-            DrawFloor(0, Floor1Canvas);
-            DrawFloor(1, Floor2Canvas);
-            DrawFloor(2, RoofCanvas);
-        }
-
-        private void DrawFloor(int floor, Canvas canvas)
-        {
-            canvas.Children.Clear();
-
-            // --- 1. Draw grid ---
-            for (int i = 0; i <= canvas.Width; i += gridSize)
-                canvas.Children.Add(new Line { X1 = i, Y1 = 0, X2 = i, Y2 = canvas.Height, Stroke = Brushes.LightGray, StrokeThickness = 1 });
-            for (int j = 0; j <= canvas.Height; j += gridSize)
-                canvas.Children.Add(new Line { X1 = 0, Y1 = j, X2 = canvas.Width, Y2 = j, Stroke = Brushes.LightGray, StrokeThickness = 1 });
-
-            // --- 2. Draw underlying floors (ghosted) ---
-            for (int f = 0; f < floor; f++)
-            {
-                foreach (var underMember in _building.GetMembersForFloor(f))
-                {
-                    DrawMemberOnCanvas(canvas, underMember, isUnderlay: true);
-                }
-            }
-
-            // --- 3. Draw this floor’s members (normal) ---
-            foreach (var m in _building.GetMembersForFloor(floor))
-            {
-                DrawMemberOnCanvas(canvas, m, isUnderlay: false);
-            }
-        }
-
-        private void DrawMemberOnCanvas(Canvas canvas, StructuralMember m, bool isUnderlay = false)
-        {
-            Brush color = m.Type switch
-            {
-                MemberType.Beam => Brushes.Blue,
-                MemberType.Girder => Brushes.DarkBlue,
-                MemberType.Wall => Brushes.Brown,
-                MemberType.Purlin => Brushes.Green,
-                MemberType.Column => Brushes.Orange,
-                _ => Brushes.Black
-            };
-
-            if (isUnderlay)
-            {
-                // Fade and lighten
-                SolidColorBrush faded = new SolidColorBrush(((SolidColorBrush)color).Color)
-                {
-                    Opacity = 0.3
+                    Type = MemberType.Beam,
+                    Start = pendingStartPoint.Value,
+                    End = click,
+                    Floor = currentFloor
                 };
-                color = faded;
+                Members.Add(newMember);
+                pendingStartPoint = null;
+                addingBeam = false;
+                Mouse.OverrideCursor = null;
+                RedrawAll();
+            }
+        }
+
+        private void HandleAddColumn(Point click)
+        {
+            if (currentFloor == 0)
+            {
+                MessageBox.Show("Columns can only start at Floor 2 or Roof (to connect to the level below).");
+                addingColumn = false;
+                Mouse.OverrideCursor = null;
+                return;
+            }
+
+            // Column connects this floor to the one below
+            int lowerFloor = currentFloor - 1;
+            double verticalShift = floorHeight; // spacing between floors
+
+            var top = click;
+            var bottom = new Point(click.X, click.Y + verticalShift);
+
+            var col = new StructuralMember
+            {
+                Type = MemberType.Column,
+                Start = top,
+                End = bottom,
+                Floor = currentFloor
+            };
+            Members.Add(col);
+
+            addingColumn = false;
+            Mouse.OverrideCursor = null;
+            RedrawAll();
+        }
+
+        private void MainCanvas_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (pendingStartPoint != null)
+            {
+                RedrawAll();
+                Point current = e.GetPosition(MainCanvas);
+                DrawTempLine(pendingStartPoint.Value, current);
+            }
+        }
+
+        private void DrawTempLine(Point start, Point end)
+        {
+            Line l = new Line
+            {
+                X1 = start.X,
+                Y1 = start.Y,
+                X2 = end.X,
+                Y2 = end.Y,
+                Stroke = Brushes.Orange,
+                StrokeThickness = 2,
+                StrokeDashArray = new DoubleCollection { 4, 2 }
+            };
+            MainCanvas.Children.Add(l);
+        }
+
+        private void MainCanvas_MouseWheel(object sender, MouseWheelEventArgs e)
+        {
+            // (optional zoom feature placeholder)
+        }
+
+        // ==============================================================
+        // DRAWING ROUTINES
+        // ==============================================================
+
+        private void RedrawAll()
+        {
+            MainCanvas.Children.Clear();
+
+            DrawGridLines();
+            DrawMembersForFloor(currentFloor);
+            DrawLowerFloorGhosts(currentFloor);
+        }
+
+        private void DrawGridLines()
+        {
+            double spacing = 100;
+            double width = MainCanvas.ActualWidth > 0 ? MainCanvas.ActualWidth : MainCanvas.Width;
+            double height = MainCanvas.ActualHeight > 0 ? MainCanvas.ActualHeight : MainCanvas.Height;
+
+            for (double x = 0; x < width; x += spacing)
+            {
+                Line grid = new Line
+                {
+                    X1 = x,
+                    Y1 = 0,
+                    X2 = x,
+                    Y2 = height,
+                    Stroke = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0)),
+                    StrokeThickness = 1
+                };
+                MainCanvas.Children.Add(grid);
+            }
+            for (double y = 0; y < height; y += spacing)
+            {
+                Line grid = new Line
+                {
+                    X1 = 0,
+                    Y1 = y,
+                    X2 = width,
+                    Y2 = y,
+                    Stroke = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0)),
+                    StrokeThickness = 1
+                };
+                MainCanvas.Children.Add(grid);
+            }
+        }
+
+        private void DrawMembersForFloor(int floor)
+        {
+            foreach (var m in Members.Where(m => m.Floor == floor))
+            {
+                DrawMember(m, 1.0);
+            }
+        }
+
+        private void DrawLowerFloorGhosts(int floor)
+        {
+            // Show members from the floor below with low opacity (if applicable)
+            if (floor == 0) return;
+            foreach (var m in Members.Where(m => m.Floor == floor - 1))
+            {
+                DrawMember(m, 0.3);
+            }
+        }
+
+        private void DrawMember(StructuralMember m, double opacity)
+        {
+            Brush stroke;
+            double thickness = 3;
+
+            switch (m.Type)
+            {
+                case MemberType.Beam:
+                    stroke = Brushes.SteelBlue;
+                    break;
+                case MemberType.Column:
+                    stroke = Brushes.Gray;
+                    thickness = 4;
+                    break;
+                default:
+                    stroke = Brushes.Black;
+                    break;
             }
 
             Line line = new Line
             {
-                X1 = m.StartNodePos.X,
-                Y1 = m.StartNodePos.Y,
-                X2 = m.EndNodePos.X,
-                Y2 = m.EndNodePos.Y,
-                Stroke = color,
-                StrokeThickness = isUnderlay ? 2 : 4,
-                StrokeDashArray = m.IsCantilever ? new DoubleCollection { 4, 2 } : null,
-                ToolTip = $"{m.Id} ({m.Type})" + (isUnderlay ? " [Underlay]" : "")
+                X1 = m.Start.X,
+                Y1 = m.Start.Y,
+                X2 = m.End.X,
+                Y2 = m.End.Y,
+                Stroke = stroke,
+                StrokeThickness = thickness,
+                Opacity = opacity
             };
-            canvas.Children.Add(line);
-
-            // For clarity, don't draw nodes for underlays
-            if (!isUnderlay)
-            {
-                DrawNode(canvas, m.StartNodePos, m, true);
-                DrawNode(canvas, m.EndNodePos, m, false);
-            }
+            MainCanvas.Children.Add(line);
         }
-
-
-        private void DrawNode(Canvas canvas, Point pos, StructuralMember member, bool isStart)
-        {
-            Ellipse node = new Ellipse
-            {
-                Width = 10,
-                Height = 10,
-                Fill = Brushes.Black,
-                Tag = (member, isStart)
-            };
-            Canvas.SetLeft(node, pos.X - 5);
-            Canvas.SetTop(node, pos.Y - 5);
-            node.MouseLeftButtonDown += Node_MouseLeftButtonDown;
-            canvas.Children.Add(node);
-        }
-
-        #endregion
     }
 }
