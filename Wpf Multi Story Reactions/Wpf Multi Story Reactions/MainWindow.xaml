@@ -30,7 +30,7 @@
             <!-- Floor control buttons -->
             <Button x:Name="Floor1Button" Content="Floor 1" Width="90" Margin="5" Click="Floor1Button_Click"/>
             <Button x:Name="Floor2Button" Content="Floor 2" Width="90" Margin="5" Click="Floor2Button_Click"/>
-            <Button x:Name="RoofButton" Content="Roof" Width="90" Margin="5" Click="RoofButton_Click"/>
+            <Button x:Name="Floor3Button" Content="Floor 3" Width="90" Margin="5" Click="RoofButton_Click"/>
 
             <Separator Width="20"/>
 

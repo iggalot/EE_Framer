@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("Wpf Multi Story Reactions")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+9bba3a2cc2a824d2c141284c2e784463ab5c67fd")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+d09fb3557d962579a11982da2f4bdcd25df65514")]
 [assembly: System.Reflection.AssemblyProductAttribute("Wpf Multi Story Reactions")]
 [assembly: System.Reflection.AssemblyTitleAttribute("Wpf Multi Story Reactions")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

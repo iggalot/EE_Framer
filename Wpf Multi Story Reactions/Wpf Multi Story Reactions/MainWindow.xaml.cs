@@ -142,18 +142,24 @@ namespace StructuralPlanner
 
         private void HandleAddColumn(Point click)
         {
-            if (currentFloor == 0)
+            if (currentFloor < 0 || currentFloor >= 3)
             {
-                MessageBox.Show("Columns can only start at Floor 2 or Roof (to connect to the level below).");
+                MessageBox.Show("Invalid floor selection.");
+                return;
+            }
+
+            // Determine the lower floor — columns always extend DOWN one level
+            int lowerFloor = currentFloor - 1;
+
+            if (lowerFloor < 0)
+            {
+                MessageBox.Show("No floor below to connect a column to.");
                 addingColumn = false;
                 Mouse.OverrideCursor = null;
                 return;
             }
 
-            // Column connects this floor to the one below
-            int lowerFloor = currentFloor - 1;
-            double verticalShift = floorHeight; // spacing between floors
-
+            double verticalShift = floorHeight; // Vertical distance between levels
             var top = click;
             var bottom = new Point(click.X, click.Y + verticalShift);
 
@@ -162,14 +168,15 @@ namespace StructuralPlanner
                 Type = MemberType.Column,
                 Start = top,
                 End = bottom,
-                Floor = currentFloor
+                Floor = lowerFloor  // ✅ belongs to the floor owning its *top*
             };
-            Members.Add(col);
 
+            Members.Add(col);
             addingColumn = false;
             Mouse.OverrideCursor = null;
             RedrawAll();
         }
+
 
         private void MainCanvas_MouseMove(object sender, MouseEventArgs e)
         {
@@ -216,7 +223,7 @@ namespace StructuralPlanner
 
         private void DrawGridLines()
         {
-            double spacing = 100;
+            double spacing = 20;
             double width = MainCanvas.ActualWidth > 0 ? MainCanvas.ActualWidth : MainCanvas.Width;
             double height = MainCanvas.ActualHeight > 0 ? MainCanvas.ActualHeight : MainCanvas.Height;
 
@@ -275,16 +282,24 @@ namespace StructuralPlanner
             {
                 case MemberType.Beam:
                     stroke = Brushes.SteelBlue;
+                    DrawLine(MainCanvas, m, opacity, stroke, thickness);
                     break;
                 case MemberType.Column:
                     stroke = Brushes.Gray;
                     thickness = 4;
+                    DrawSquareCentered(MainCanvas, m, 10.0, stroke, thickness);
                     break;
                 default:
                     stroke = Brushes.Black;
+                    DrawLine(MainCanvas, m, opacity, stroke, thickness);
                     break;
             }
 
+
+        }
+
+        private void DrawLine(Canvas cnv, StructuralMember m, double opacity, Brush stroke, double thickness)
+        {
             Line line = new Line
             {
                 X1 = m.Start.X,
@@ -295,7 +310,26 @@ namespace StructuralPlanner
                 StrokeThickness = thickness,
                 Opacity = opacity
             };
-            MainCanvas.Children.Add(line);
+            cnv.Children.Add(line);
         }
+
+        private void DrawSquareCentered(Canvas cnv, StructuralMember m, double h, Brush stroke, double thickness, Brush fill = null)
+        {
+            Rectangle square = new Rectangle
+            {
+                Width = h,
+                Height = h,
+                Stroke = stroke,
+                StrokeThickness = thickness,
+                Fill = fill ?? Brushes.Transparent
+            };
+
+            // Position so the square is centered on (m.Start.X, m.Start.Y)
+            Canvas.SetLeft(square, m.Start.X - h / 2);
+            Canvas.SetTop(square, m.Start.Y - h / 2);
+
+            cnv.Children.Add(square);
+        }
+
     }
 }
