@@ -11,9 +11,7 @@ namespace MultiStoryReactions
     public partial class MainWindow : Window
     {
         private BuildingModel _building = new BuildingModel();
-        private double levelHeight = 100;
-        private int numberOfStories = 3;
-        private bool showFloorGrid = true;
+        private int gridSize = 50; // Plan grid snapping
 
         // Drag-and-drop
         private bool isDragging = false;
@@ -29,12 +27,18 @@ namespace MultiStoryReactions
             InitializeComponent();
             MemberGrid.ItemsSource = _building.Members;
 
-            BuildingCanvas.Height = Math.Max(1000, numberOfStories * levelHeight + 200);
-            BuildingCanvas.Width = 2000; // can be fixed or dynamic
+            // Attach mouse events for all canvases
+            Floor1Canvas.MouseLeftButtonDown += Canvas_MouseLeftButtonDown;
+            Floor1Canvas.MouseMove += Canvas_MouseMove;
+            Floor1Canvas.MouseLeftButtonUp += Canvas_MouseLeftButtonUp;
 
-            BuildingCanvas.MouseMove += Canvas_MouseMove;
-            BuildingCanvas.MouseLeftButtonUp += Canvas_MouseLeftButtonUp;
-            BuildingCanvas.MouseLeftButtonDown += BuildingCanvas_MouseLeftButtonDown;
+            Floor2Canvas.MouseLeftButtonDown += Canvas_MouseLeftButtonDown;
+            Floor2Canvas.MouseMove += Canvas_MouseMove;
+            Floor2Canvas.MouseLeftButtonUp += Canvas_MouseLeftButtonUp;
+
+            RoofCanvas.MouseLeftButtonDown += Canvas_MouseLeftButtonDown;
+            RoofCanvas.MouseMove += Canvas_MouseMove;
+            RoofCanvas.MouseLeftButtonUp += Canvas_MouseLeftButtonUp;
         }
 
         #region Button Handlers
@@ -44,10 +48,10 @@ namespace MultiStoryReactions
             isPlacingMember = true;
             placingMember = new StructuralMember
             {
-                Id = Guid.NewGuid().ToString().Substring(0, 5),
                 Type = MemberType.Beam,
                 IsCantilever = false,
-                UniformLoad = 1.0
+                UniformLoad = 1.0,
+                Floor = FloorTabs.SelectedIndex // Floor determined by active tab
             };
             TxtResults.Text = "Click on canvas to set START node of the member.";
         }
@@ -58,50 +62,50 @@ namespace MultiStoryReactions
             {
                 _building.Members.Remove(selected);
                 MemberGrid.Items.Refresh();
-                DrawBuilding();
+                DrawAllFloors();
             }
         }
 
         private void BtnCompute_Click(object sender, RoutedEventArgs e)
         {
             _building.ComputeReactions();
-            MemberGrid.Items.Refresh(); // force DataGrid to refresh
+            MemberGrid.Items.Refresh();
             TxtResults.Text = _building.GetReactionSummary();
-            DrawBuilding();
+            DrawAllFloors();
         }
 
         #endregion
 
         #region Canvas Placement & Drag-Drop
 
-        private void BuildingCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        private void Canvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
-            Point clickPos = e.GetPosition(BuildingCanvas);
+            Canvas canvas = sender as Canvas;
+            Point clickPos = e.GetPosition(canvas);
 
             if (isPlacingMember)
             {
-                double snappedY = Math.Round(clickPos.Y / levelHeight) * levelHeight;
+                // Snap to grid
+                double snappedX = Math.Round(clickPos.X / gridSize) * gridSize;
+                double snappedY = Math.Round(clickPos.Y / gridSize) * gridSize;
+                Point snappedPoint = new Point(snappedX, snappedY);
 
                 if (placingMember.StartNodePos == default(Point))
                 {
-                    placingMember.StartNodePos = new Point(clickPos.X, snappedY);
+                    placingMember.StartNodePos = snappedPoint;
                     TxtResults.Text = "Click on canvas to set END node of the member.";
                 }
                 else
                 {
-                    placingMember.EndNodePos = new Point(clickPos.X, snappedY);
-
-                    // Compute levels
-                    placingMember.StartLevel = (int)Math.Round((BuildingCanvas.Height - placingMember.StartNodePos.Y) / levelHeight);
-                    placingMember.EndLevel = (int)Math.Round((BuildingCanvas.Height - placingMember.EndNodePos.Y) / levelHeight);
+                    placingMember.EndNodePos = snappedPoint;
 
                     _building.Members.Add(placingMember);
                     MemberGrid.Items.Refresh();
-                    DrawBuilding();
+                    DrawAllFloors();
 
                     isPlacingMember = false;
                     placingMember = null;
-                    TxtResults.Text = "Member added. Click 'Add Member' to place another.";
+                    TxtResults.Text = "Member added. Select 'Add Member' to place another.";
                 }
             }
         }
@@ -112,7 +116,8 @@ namespace MultiStoryReactions
             if (selectedNode != null)
             {
                 isDragging = true;
-                Point mousePos = e.GetPosition(BuildingCanvas);
+                Canvas canvas = GetCanvasForNode(selectedNode);
+                Point mousePos = e.GetPosition(canvas);
                 mouseOffset = new Point(mousePos.X - Canvas.GetLeft(selectedNode),
                                         mousePos.Y - Canvas.GetTop(selectedNode));
                 selectedNode.CaptureMouse();
@@ -123,21 +128,24 @@ namespace MultiStoryReactions
         {
             if (isDragging && selectedNode != null)
             {
-                Point mousePos = e.GetPosition(BuildingCanvas);
-                double snappedY = Math.Round(mousePos.Y / levelHeight) * levelHeight;
+                Canvas canvas = GetCanvasForNode(selectedNode);
+                Point mousePos = e.GetPosition(canvas);
 
-                Canvas.SetLeft(selectedNode, mousePos.X - mouseOffset.X);
+                double snappedX = Math.Round((mousePos.X - mouseOffset.X + 5) / gridSize) * gridSize;
+                double snappedY = Math.Round((mousePos.Y - mouseOffset.Y + 5) / gridSize) * gridSize;
+
+                Canvas.SetLeft(selectedNode, snappedX - 5);
                 Canvas.SetTop(selectedNode, snappedY - 5);
 
                 var (member, isStart) = ((StructuralMember, bool))selectedNode.Tag;
-                Point newPos = new Point(mousePos.X, snappedY);
+                Point newPos = new Point(snappedX, snappedY);
 
                 if (isStart)
                     member.StartNodePos = newPos;
                 else
                     member.EndNodePos = newPos;
 
-                DrawBuilding();
+                DrawAllFloors();
             }
         }
 
@@ -151,99 +159,77 @@ namespace MultiStoryReactions
             }
         }
 
+        private Canvas GetCanvasForNode(Ellipse node)
+        {
+            var (member, _) = ((StructuralMember, bool))node.Tag;
+            return member.Floor switch
+            {
+                0 => Floor1Canvas,
+                1 => Floor2Canvas,
+                2 => RoofCanvas,
+                _ => Floor1Canvas
+            };
+        }
+
         #endregion
 
         #region Drawing
 
-        private void DrawBuilding()
+        private void DrawAllFloors()
         {
-            BuildingCanvas.Children.Clear();
+            DrawFloor(0, Floor1Canvas);
+            DrawFloor(1, Floor2Canvas);
+            DrawFloor(2, RoofCanvas);
+        }
 
-            // Ensure canvas height covers all floors
-            BuildingCanvas.Height = Math.Max(1000, numberOfStories * levelHeight + 100);
-            BuildingCanvas.Width = 2000;
+        private void DrawFloor(int floor, Canvas canvas)
+        {
+            canvas.Children.Clear();
 
-            // 1. Draw floor grid
-            if (showFloorGrid)
+            // Draw grid
+            for (int i = 0; i <= canvas.Width; i += gridSize)
+                canvas.Children.Add(new Line { X1 = i, Y1 = 0, X2 = i, Y2 = canvas.Height, Stroke = Brushes.LightGray, StrokeThickness = 1 });
+            for (int j = 0; j <= canvas.Height; j += gridSize)
+                canvas.Children.Add(new Line { X1 = 0, Y1 = j, X2 = canvas.Width, Y2 = j, Stroke = Brushes.LightGray, StrokeThickness = 1 });
+
+            // Draw members for this floor
+            foreach (var m in _building.GetMembersForFloor(floor))
             {
-                for (int i = 0; i <= numberOfStories; i++)
-                {
-                    double y = BuildingCanvas.Height - i * levelHeight;
-
-                    Line gridLine = new Line
-                    {
-                        X1 = 0,
-                        Y1 = y,
-                        X2 = BuildingCanvas.Width,
-                        Y2 = y,
-                        Stroke = Brushes.LightGray,
-                        StrokeThickness = 1,
-                        StrokeDashArray = new DoubleCollection { 4, 2 }
-                    };
-                    BuildingCanvas.Children.Add(gridLine);
-
-                    // Floor label
-                    TextBlock floorLabel = new TextBlock
-                    {
-                        Text = $"Floor {i}",
-                        Foreground = Brushes.Gray,
-                        FontSize = 12
-                    };
-                    Canvas.SetLeft(floorLabel, 5);
-                    Canvas.SetTop(floorLabel, y - 15);
-                    BuildingCanvas.Children.Add(floorLabel);
-                }
-            }
-
-            // 2. Draw members on top of grid
-            var members = _building.Members.OrderByDescending(m => m.StartLevel).ToList();
-
-            foreach (var m in members)
-            {
-                DrawMember(m);
+                DrawMemberOnCanvas(canvas, m);
             }
         }
 
-        private void DrawMember(StructuralMember m)
+        private void DrawMemberOnCanvas(Canvas canvas, StructuralMember m)
         {
-            double xStart = m.StartNodePos.X;
-            double yStart = m.StartNodePos.Y;
-            double xEnd = m.EndNodePos.X;
-            double yEnd = m.EndNodePos.Y;
+            Brush color = m.Type switch
+            {
+                MemberType.Beam => Brushes.Blue,
+                MemberType.Girder => Brushes.DarkBlue,
+                MemberType.Wall => Brushes.Brown,
+                MemberType.Purlin => Brushes.Green,
+                MemberType.Column => Brushes.Orange,
+                _ => Brushes.Black
+            };
 
-            // Draw member line
             Line line = new Line
             {
-                X1 = xStart,
-                Y1 = yStart,
-                X2 = xEnd,
-                Y2 = yEnd,
-                Stroke = m.Type switch
-                {
-                    MemberType.Beam => Brushes.Blue,
-                    MemberType.Girder => Brushes.DarkBlue,
-                    MemberType.Wall => Brushes.Brown,
-                    MemberType.Purlin => Brushes.Green,
-                    _ => Brushes.Black
-                },
+                X1 = m.StartNodePos.X,
+                Y1 = m.StartNodePos.Y,
+                X2 = m.EndNodePos.X,
+                Y2 = m.EndNodePos.Y,
+                Stroke = color,
                 StrokeThickness = 4,
                 StrokeDashArray = m.IsCantilever ? new DoubleCollection { 4, 2 } : null,
-                ToolTip = $"{m.Id} ({m.Type}) RA={m.ReactionA:F2}, RB={m.ReactionB:F2}"
+                ToolTip = $"{m.Id} ({m.Type})"
             };
-            BuildingCanvas.Children.Add(line);
+            canvas.Children.Add(line);
 
-            // Draw start and end nodes
-            DrawNode(m.StartNodePos, m, true);
-            DrawNode(m.EndNodePos, m, false);
-
-            // Draw reactions
-            DrawReactionArrow(xStart, yStart, m.ReactionA);
-            DrawReactionArrow(xEnd, yEnd, m.ReactionB);
+            // Draw nodes
+            DrawNode(canvas, m.StartNodePos, m, true);
+            DrawNode(canvas, m.EndNodePos, m, false);
         }
 
-
-
-        private void DrawNode(Point pos, StructuralMember member, bool isStart)
+        private void DrawNode(Canvas canvas, Point pos, StructuralMember member, bool isStart)
         {
             Ellipse node = new Ellipse
             {
@@ -252,60 +238,11 @@ namespace MultiStoryReactions
                 Fill = Brushes.Black,
                 Tag = (member, isStart)
             };
-
             Canvas.SetLeft(node, pos.X - 5);
             Canvas.SetTop(node, pos.Y - 5);
-
             node.MouseLeftButtonDown += Node_MouseLeftButtonDown;
-            BuildingCanvas.Children.Add(node);
+            canvas.Children.Add(node);
         }
-
-        private void DrawReactionArrow(double x, double y, double reaction)
-        {
-            double arrowLength = 20 + reaction * 5;
-            Line arrow = new Line
-            {
-                X1 = x,
-                Y1 = y,
-                X2 = x,
-                Y2 = y + arrowLength,
-                Stroke = Brushes.Red,
-                StrokeThickness = 2
-            };
-            BuildingCanvas.Children.Add(arrow);
-        }
-
-        private void DrawFloorGrid()
-        {
-            for (int i = 0; i <= numberOfStories; i++)
-            {
-                double y = BuildingCanvas.Height - i * levelHeight;
-
-                Line gridLine = new Line
-                {
-                    X1 = 0,
-                    Y1 = y,
-                    X2 = BuildingCanvas.Width,
-                    Y2 = y,
-                    Stroke = Brushes.LightGray,
-                    StrokeThickness = 1,
-                    StrokeDashArray = new DoubleCollection { 4, 2 }
-                };
-                BuildingCanvas.Children.Add(gridLine);
-
-                // Optional: floor label
-                TextBlock floorLabel = new TextBlock
-                {
-                    Text = $"Floor {i}",
-                    Foreground = Brushes.Gray,
-                    FontSize = 12
-                };
-                Canvas.SetLeft(floorLabel, 5);
-                Canvas.SetTop(floorLabel, y - 15);
-                BuildingCanvas.Children.Add(floorLabel);
-            }
-        }
-
 
         #endregion
     }

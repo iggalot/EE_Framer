@@ -14,11 +14,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\Programming\\EE_FramerPrototype\\Wpf Multi Story Reactions\\Wpf Multi Story Reactions\\Wpf Multi Story Reactions.csproj",
+      "projectUniqueName": "C:\\Programming\\EE_FramerPrototype\\EE_Framer\\Wpf Multi Story Reactions\\Wpf Multi Story Reactions\\Wpf Multi Story Reactions.csproj",
       "projectName": "Wpf Multi Story Reactions",
-      "projectPath": "C:\\Programming\\EE_FramerPrototype\\Wpf Multi Story Reactions\\Wpf Multi Story Reactions\\Wpf Multi Story Reactions.csproj",
+      "projectPath": "C:\\Programming\\EE_FramerPrototype\\EE_Framer\\Wpf Multi Story Reactions\\Wpf Multi Story Reactions\\Wpf Multi Story Reactions.csproj",
       "packagesPath": "C:\\Users\\iggal\\.nuget\\packages\\",
-      "outputPath": "C:\\Programming\\EE_FramerPrototype\\Wpf Multi Story Reactions\\Wpf Multi Story Reactions\\obj\\",
+      "outputPath": "C:\\Programming\\EE_FramerPrototype\\EE_Framer\\Wpf Multi Story Reactions\\Wpf Multi Story Reactions\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
