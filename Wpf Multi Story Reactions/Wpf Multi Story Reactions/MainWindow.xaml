@@ -1,0 +1,38 @@
+﻿<Window x:Class="MultiStoryReactions.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Multi-Story Structural Visualizer" Height="700" Width="1000">
+    <Grid>
+        <!-- Left panel -->
+        <StackPanel Width="250" HorizontalAlignment="Left" Margin="10">
+            <TextBlock Text="Structural Members" FontWeight="Bold" Margin="0,0,0,5"/>
+            <DataGrid x:Name="MemberGrid" Height="200" AutoGenerateColumns="True" CanUserAddRows="False"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,5,0,5">
+                <Button x:Name="BtnAddMember" Content="Add Member" Width="100" Click="BtnAddMember_Click"/>
+                <Button x:Name="BtnRemoveMember" Content="Remove" Width="100" Margin="5,0,0,0" Click="BtnRemoveMember_Click"/>
+            </StackPanel>
+
+            <Button x:Name="BtnCompute" Content="Compute Reactions" Width="200" Click="BtnCompute_Click"/>
+
+            <TextBlock Text="Reactions" FontWeight="Bold" Margin="0,10,0,5"/>
+            <TextBox x:Name="TxtResults" Height="200" Width="220" TextWrapping="Wrap" AcceptsReturn="True"/>
+
+            <!-- Legend -->
+            <TextBlock Text="Legend:" FontWeight="Bold" Margin="0,10,0,0"/>
+            <StackPanel Margin="5,0,0,0">
+                <TextBlock Text="Blue: Beam"/>
+                <TextBlock Text="Dark Blue: Girder"/>
+                <TextBlock Text="Brown: Wall"/>
+                <TextBlock Text="Green: Purlin"/>
+                <TextBlock Text="Dashed Line: Cantilever"/>
+                <TextBlock Text="Red Arrows: Support Reactions"/>
+            </StackPanel>
+        </StackPanel>
+
+        <!-- Right panel -->
+        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" Margin="270,10,10,10">
+            <Canvas x:Name="BuildingCanvas" Background="LightGray" Width="2000" Height="1000"/>
+        </ScrollViewer>
+    </Grid>
+</Window>
