@@ -401,5 +401,33 @@ FodyWeavers.xsd
 
 ### VisualStudio Patch ###
 # Additional files built by Visual Studio
+# Visual Studio files and folders
+.vs/
+*.suo
+*.user
+*.log
+*.tlog
+*.pdb
+*.ilk
+*.obj
+*.exe
+*.dll
+*.lib
+*.sbr
+*.res
+*.ncb
+*.aps
+*.bsc
+*.map
+*.dep
+*.bak
+*.cache
+*.VC.db
+*.VC.opendb
+ipch/
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudio
