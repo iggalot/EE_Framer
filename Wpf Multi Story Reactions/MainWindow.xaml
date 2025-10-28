@@ -88,11 +88,24 @@
                 Background="WhiteSmoke"
                 Margin="10"
                 ClipToBounds="True">
-            <Canvas x:Name="MainCanvas"
-                    Background="White"
-                    MouseLeftButtonDown="MainCanvas_MouseLeftButtonDown"
-                    MouseMove="MainCanvas_MouseMove"
-                    MouseWheel="MainCanvas_MouseWheel"/>
+            <Grid x:Name="CanvasContainer" Background="White">
+                <!-- Layer 1: Static grid (drawn once) -->
+                <Canvas x:Name="GridLayer"
+            IsHitTestVisible="False" />
+
+                <!-- Layer 2: Permanent structural members -->
+                <Canvas x:Name="MemberLayer"
+            Background="Transparent"
+            MouseLeftButtonDown="MemberLayer_MouseLeftButtonDown"
+            MouseMove="MemberLayer_MouseMove"
+            MouseWheel="MainCanvas_MouseWheel" />
+
+                <!-- Layer 3: Temporary overlay (preview, highlights) -->
+                <Canvas x:Name="OverlayLayer"
+            Background="Transparent"
+            IsHitTestVisible="False" />
+            </Grid>
+
         </Border>
     </Grid>
 </Window>
