@@ -15,18 +15,18 @@ namespace StructuralPlanner
 
         public class Node
         {
+            public string NodeID { get; set; }
             public Point Location { get; set; }
             public int Floor { get; set; }
-            public int ID { get; set; } // Assigned automatically
         }
 
         public class StructuralMember
         {
+            public string ID { get; set; }
             public MemberType Type { get; set; }
             public Node StartNode { get; set; }
             public Node EndNode { get; set; }
             public int Floor => StartNode.Floor;
-            public string ID { get; set; } // e.g., "B1", "C3"
         }
 
         private readonly List<Node> Nodes = new();
@@ -41,8 +41,9 @@ namespace StructuralPlanner
         private const double floorHeight = 200;
         private const double snapTolerance = 15;
 
-        private int beamCounter = 1;
-        private int columnCounter = 1;
+        private int beamCount = 0;
+        private int columnCount = 0;
+        private int nodeCount = 0;
 
         public MainWindow()
         {
@@ -52,9 +53,9 @@ namespace StructuralPlanner
         }
 
         // ==================== Floor Buttons ====================
-        private void Floor1Button_Click(object sender, RoutedEventArgs e) { currentFloor = 0; RedrawMembers(); UpdateDataGrid(); }
-        private void Floor2Button_Click(object sender, RoutedEventArgs e) { currentFloor = 1; RedrawMembers(); UpdateDataGrid(); }
-        private void RoofButton_Click(object sender, RoutedEventArgs e) { currentFloor = 2; RedrawMembers(); UpdateDataGrid(); }
+        private void Floor1Button_Click(object sender, RoutedEventArgs e) { currentFloor = 0; RedrawMembers(); }
+        private void Floor2Button_Click(object sender, RoutedEventArgs e) { currentFloor = 1; RedrawMembers(); }
+        private void RoofButton_Click(object sender, RoutedEventArgs e) { currentFloor = 2; RedrawMembers(); }
 
         // ==================== Member Buttons ====================
         private void AddBeamButton_Click(object sender, RoutedEventArgs e)
@@ -72,12 +73,13 @@ namespace StructuralPlanner
             Members.Clear();
             Nodes.Clear();
             pendingStartPoint = null;
+            beamCount = 0;
+            columnCount = 0;
+            nodeCount = 0;
             OverlayLayer.Children.Clear();
-            beamCounter = 1;
-            columnCounter = 1;
             RedrawMembers();
             UpdateDataGrid();
-            UpdateConnectionGrid();
+            UpdateNodeConnectionsDataGrid();
         }
 
         private void ComputeReactionsButton_Click(object sender, RoutedEventArgs e)
@@ -88,8 +90,6 @@ namespace StructuralPlanner
         private void ShowColumnsButton_Click(object sender, RoutedEventArgs e)
         {
             RedrawMembers();
-            UpdateDataGrid();
-            UpdateConnectionGrid();
         }
 
         // ==================== Canvas Events ====================
@@ -103,10 +103,49 @@ namespace StructuralPlanner
 
         private void MemberLayer_MouseMove(object sender, MouseEventArgs e)
         {
-            if (pendingStartPoint != null)
+            Point mousePos = e.GetPosition(MemberLayer);
+            OverlayLayer.Children.Clear();
+
+            if (!addingBeam && !addingColumn) return;
+
+            // Snap circle
+            Ellipse snapCircle = new Ellipse
             {
-                DrawTempLine(pendingStartPoint.Value, e.GetPosition(MemberLayer));
+                Width = snapTolerance * 2,
+                Height = snapTolerance * 2,
+                Stroke = Brushes.Orange,
+                StrokeThickness = 1
+            };
+            Canvas.SetLeft(snapCircle, mousePos.X - snapTolerance);
+            Canvas.SetTop(snapCircle, mousePos.Y - snapTolerance);
+            OverlayLayer.Children.Add(snapCircle);
+
+            // Highlight closest node
+            Node closestNode = Nodes
+                .Where(n => n.Floor == currentFloor)
+                .OrderBy(n => Distance(mousePos, n.Location))
+                .FirstOrDefault();
+
+            if (closestNode != null && Distance(mousePos, closestNode.Location) <= snapTolerance)
+            {
+                Ellipse highlight = new Ellipse
+                {
+                    Width = 12,
+                    Height = 12,
+                    Fill = Brushes.Yellow,
+                    Opacity = 0.5
+                };
+                Canvas.SetLeft(highlight, closestNode.Location.X - 6);
+                Canvas.SetTop(highlight, closestNode.Location.Y - 6);
+                OverlayLayer.Children.Add(highlight);
             }
+
+            // Update node connections grid
+            UpdateNodeConnectionsDataGrid();
+
+            // Temporary line
+            if (pendingStartPoint != null)
+                DrawTempLine(pendingStartPoint.Value, mousePos);
         }
 
         private void MainCanvas_MouseWheel(object sender, MouseWheelEventArgs e)
@@ -122,13 +161,13 @@ namespace StructuralPlanner
 
         private Node CreateNode(Point p, int floor)
         {
-            var node = new Node { Location = p, Floor = floor, ID = Nodes.Count + 1 };
+            nodeCount++;
+            var node = new Node { NodeID = $"N{nodeCount}", Location = p, Floor = floor };
             Nodes.Add(node);
             return node;
         }
 
-        private double Distance(Point a, Point b) =>
-            Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Y - b.Y, 2));
+        private double Distance(Point a, Point b) => Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Y - b.Y, 2));
 
         // ==================== Adding Members ====================
         private void HandleAddBeam(Point click)
@@ -142,14 +181,9 @@ namespace StructuralPlanner
             else
             {
                 Node startNode = GetNearbyNode(pendingStartPoint.Value, currentFloor) ?? CreateNode(pendingStartPoint.Value, currentFloor);
-
-                Members.Add(new StructuralMember
-                {
-                    Type = MemberType.Beam,
-                    StartNode = startNode,
-                    EndNode = clickedNode,
-                    ID = $"B{beamCounter++}"
-                });
+                beamCount++;
+                var member = new StructuralMember { ID = $"B{beamCount}", Type = MemberType.Beam, StartNode = startNode, EndNode = clickedNode };
+                Members.Add(member);
 
                 pendingStartPoint = null;
                 addingBeam = false;
@@ -157,7 +191,7 @@ namespace StructuralPlanner
                 OverlayLayer.Children.Clear();
                 RedrawMembers();
                 UpdateDataGrid();
-                UpdateConnectionGrid();
+                UpdateNodeConnectionsDataGrid();
             }
         }
 
@@ -172,22 +206,17 @@ namespace StructuralPlanner
             }
 
             Node topNode = GetNearbyNode(click, currentFloor) ?? CreateNode(click, currentFloor);
-            Node bottomNode = GetNearbyNode(new Point(click.X, click.Y + floorHeight), currentFloor - 1) ??
-                              CreateNode(new Point(click.X, click.Y + floorHeight), currentFloor - 1);
+            Node bottomNode = GetNearbyNode(new Point(click.X, click.Y + floorHeight), currentFloor - 1) ?? CreateNode(new Point(click.X, click.Y + floorHeight), currentFloor - 1);
 
-            Members.Add(new StructuralMember
-            {
-                Type = MemberType.Column,
-                StartNode = topNode,
-                EndNode = bottomNode,
-                ID = $"C{columnCounter++}"
-            });
+            columnCount++;
+            var member = new StructuralMember { ID = $"C{columnCount}", Type = MemberType.Column, StartNode = topNode, EndNode = bottomNode };
+            Members.Add(member);
 
             addingColumn = false;
             Mouse.OverrideCursor = null;
             RedrawMembers();
             UpdateDataGrid();
-            UpdateConnectionGrid();
+            UpdateNodeConnectionsDataGrid();
         }
 
         // ==================== Drawing ====================
@@ -238,11 +267,14 @@ namespace StructuralPlanner
             // Draw nodes for current floor
             foreach (var n in Nodes.Where(n => n.Floor == currentFloor))
                 DrawNode(MemberLayer, n);
+
+            // Update data grids
+            UpdateDataGrid();
+            UpdateNodeConnectionsDataGrid();
         }
 
         private void DrawTempLine(Point start, Point end)
         {
-            OverlayLayer.Children.Clear();
             tempLine = new Line
             {
                 X1 = start.X,
@@ -271,6 +303,20 @@ namespace StructuralPlanner
                 StrokeThickness = thickness,
                 Opacity = opacity
             });
+
+            // Draw member ID label at midpoint
+            TextBlock lbl = new TextBlock
+            {
+                Text = m.ID,
+                Foreground = Brushes.Black,
+                FontWeight = FontWeights.Bold,
+                Background = Brushes.White
+            };
+            double midX = (m.StartNode.Location.X + m.EndNode.Location.X) / 2;
+            double midY = (m.StartNode.Location.Y + m.EndNode.Location.Y) / 2;
+            Canvas.SetLeft(lbl, midX + 2);
+            Canvas.SetTop(lbl, midY + 2);
+            cnv.Children.Add(lbl);
         }
 
         private void DrawNode(Canvas cnv, Node n)
@@ -288,28 +334,25 @@ namespace StructuralPlanner
             Canvas.SetTop(ellipse, n.Location.Y - size / 2);
             cnv.Children.Add(ellipse);
 
-            // Draw node ID label
-            TextBlock label = new TextBlock
+            // Draw node ID
+            TextBlock lbl = new TextBlock
             {
-                Text = $"N{n.ID}",
-                Foreground = Brushes.DarkRed,
-                FontWeight = FontWeights.Bold,
-                FontSize = 10
+                Text = n.NodeID,
+                Foreground = Brushes.Black,
+                FontWeight = FontWeights.Bold
             };
-            Canvas.SetLeft(label, n.Location.X + 6);
-            Canvas.SetTop(label, n.Location.Y - 8);
-            cnv.Children.Add(label);
+            Canvas.SetLeft(lbl, n.Location.X + 4);
+            Canvas.SetTop(lbl, n.Location.Y - 4);
+            cnv.Children.Add(lbl);
         }
 
-        // ==================== Update DataGrid ====================
+        // ==================== Update DataGrids ====================
         private void UpdateDataGrid()
         {
             var tableData = Members.Select(m => new
             {
                 ID = m.ID,
                 Type = m.Type.ToString(),
-                StartNode = $"N{m.StartNode.ID}",
-                EndNode = $"N{m.EndNode.ID}",
                 StartX = Math.Round(m.StartNode.Location.X, 1),
                 StartY = Math.Round(m.StartNode.Location.Y, 1),
                 EndX = Math.Round(m.EndNode.Location.X, 1),
@@ -320,21 +363,16 @@ namespace StructuralPlanner
             BeamDataGrid.ItemsSource = tableData;
         }
 
-        // ==================== Connection Data ====================
-        private void UpdateConnectionGrid()
+        private void UpdateNodeConnectionsDataGrid()
         {
-            var connectionData = Nodes.Select(n => new
+            var data = Nodes.Select(n => new
             {
-                Node = $"N{n.ID}",
-                X = Math.Round(n.Location.X, 1),
-                Y = Math.Round(n.Location.Y, 1),
+                NodeID = n.NodeID,
                 Floor = n.Floor,
-                ConnectedMembers = string.Join(", ",
-                    Members.Where(m => m.StartNode == n || m.EndNode == n)
-                           .Select(m => m.ID))
+                ConnectedMembers = string.Join(", ", Members.Where(m => m.StartNode == n || m.EndNode == n).Select(m => m.ID))
             }).ToList();
 
-            ConnectionDataGrid.ItemsSource = connectionData;
+            NodeConnectionsDataGrid.ItemsSource = data;
         }
     }
 }

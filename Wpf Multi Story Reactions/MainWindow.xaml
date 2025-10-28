@@ -21,16 +21,27 @@
                     Background="#FF3C3C3C"
                     Height="60"
                     VerticalAlignment="Top">
+
+            <!-- Floor control buttons -->
             <Button x:Name="Floor1Button" Content="Floor 1" Width="90" Margin="5" Click="Floor1Button_Click"/>
             <Button x:Name="Floor2Button" Content="Floor 2" Width="90" Margin="5" Click="Floor2Button_Click"/>
-            <Button x:Name="Floor3Button" Content="Floor 3" Width="90" Margin="5" Click="RoofButton_Click"/>
+            <Button x:Name="Floor3Button" Content="Roof" Width="90" Margin="5" Click="RoofButton_Click"/>
+
             <Separator Width="20"/>
+
+            <!-- Beam controls -->
             <Button x:Name="AddBeamButton" Content="Add Beam" Width="100" Margin="5" Click="AddBeamButton_Click"/>
             <Button x:Name="ComputeReactionsButton" Content="Compute Reactions" Width="140" Margin="5" Click="ComputeReactionsButton_Click"/>
+
             <Separator Width="20"/>
+
+            <!-- Column controls -->
             <Button x:Name="AddColumnButton" Content="Add Column" Width="100" Margin="5" Click="AddColumnButton_Click"/>
             <Button x:Name="ShowColumnsButton" Content="Show Columns" Width="110" Margin="5" Click="ShowColumnsButton_Click"/>
+
             <Separator Width="20"/>
+
+            <!-- Misc -->
             <Button x:Name="ClearButton" Content="Clear All" Width="100" Margin="5" Click="ClearButton_Click"/>
         </StackPanel>
 
@@ -39,40 +50,36 @@
                     Background="#FF3C3C3C"
                     VerticalAlignment="Stretch">
 
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <StackPanel Margin="10">
-                    <TextBlock Text="Legend" FontWeight="Bold" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
-                    <StackPanel Orientation="Vertical" Margin="10,0,0,0">
-                        <TextBlock Text="Blue: Beams (current floor)" Foreground="LightBlue" Margin="0,5"/>
-                        <TextBlock Text="Gray: Columns (current floor)" Foreground="LightGray" Margin="0,5"/>
-                        <TextBlock Text="Light Gray: Columns (below floor)" Foreground="#66FFFFFF" Margin="0,5"/>
-                        <TextBlock Text="Green: Supports / Reactions" Foreground="LightGreen" Margin="0,5"/>
-                        <TextBlock Text="Grid: Reference Lines" Foreground="LightSlateGray" Margin="0,5"/>
-                    </StackPanel>
+            <TextBlock Text="Legend" FontWeight="Bold" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
+            <StackPanel Orientation="Vertical" Margin="10,0,0,0">
+                <TextBlock Text="Blue: Beams (current floor)" Foreground="LightBlue" Margin="0,5"/>
+                <TextBlock Text="Gray: Columns (current floor)" Foreground="LightGray" Margin="0,5"/>
+                <TextBlock Text="Light Gray: Columns (below floor)" Foreground="#66FFFFFF" Margin="0,5"/>
+                <TextBlock Text="Green: Supports / Reactions" Foreground="LightGreen" Margin="0,5"/>
+                <TextBlock Text="Grid: Reference Lines" Foreground="LightSlateGray" Margin="0,5"/>
+            </StackPanel>
 
-                    <Separator Margin="10,20,10,10"/>
+            <Separator Margin="10,20,10,10"/>
 
-                    <TextBlock Text="Member Data" FontWeight="Bold" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
-                    <DataGrid x:Name="BeamDataGrid"
-                              AutoGenerateColumns="True"
-                              CanUserAddRows="False"
-                              HeadersVisibility="Column"
-                              Background="White"
-                              Foreground="Black"
-                              Margin="0,5,0,20"
-                              Height="200"/>
+            <TextBlock Text="Member Data" FontWeight="Bold" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
+            <DataGrid x:Name="BeamDataGrid"
+                      AutoGenerateColumns="True"
+                      CanUserAddRows="False"
+                      HeadersVisibility="Column"
+                      Background="White"
+                      Foreground="Black"
+                      Height="150"
+                      Margin="0,5,0,10"/>
 
-                    <TextBlock Text="Nodal Connections" FontWeight="Bold" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
-                    <DataGrid x:Name="ConnectionDataGrid"
-                              AutoGenerateColumns="True"
-                              CanUserAddRows="False"
-                              HeadersVisibility="Column"
-                              Background="White"
-                              Foreground="Black"
-                              Height="250"
-                              Margin="0,5,0,10"/>
-                </StackPanel>
-            </ScrollViewer>
+            <TextBlock Text="Node Connections" FontWeight="Bold" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
+            <DataGrid x:Name="NodeConnectionsDataGrid"
+                      AutoGenerateColumns="True"
+                      CanUserAddRows="False"
+                      HeadersVisibility="Column"
+                      Background="White"
+                      Foreground="Black"
+                      Height="150"
+                      Margin="0,5,0,10"/>
         </StackPanel>
 
         <!-- ================= DRAWING CANVAS ================= -->
