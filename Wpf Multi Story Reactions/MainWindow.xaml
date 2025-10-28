@@ -8,15 +8,11 @@
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="250"/>
-            <!-- Left panel -->
             <ColumnDefinition Width="*"/>
-            <!-- Drawing area -->
         </Grid.ColumnDefinitions>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <!-- Top toolbar -->
             <RowDefinition Height="*"/>
-            <!-- Main content -->
         </Grid.RowDefinitions>
 
         <!-- ================= TOP TOOLBAR ================= -->
@@ -24,61 +20,59 @@
                     Orientation="Horizontal"
                     Background="#FF3C3C3C"
                     Height="60"
-                    VerticalAlignment="Top"
-                    >
-
-            <!-- Floor control buttons -->
+                    VerticalAlignment="Top">
             <Button x:Name="Floor1Button" Content="Floor 1" Width="90" Margin="5" Click="Floor1Button_Click"/>
             <Button x:Name="Floor2Button" Content="Floor 2" Width="90" Margin="5" Click="Floor2Button_Click"/>
             <Button x:Name="Floor3Button" Content="Floor 3" Width="90" Margin="5" Click="RoofButton_Click"/>
-
             <Separator Width="20"/>
-
-            <!-- Beam controls -->
             <Button x:Name="AddBeamButton" Content="Add Beam" Width="100" Margin="5" Click="AddBeamButton_Click"/>
             <Button x:Name="ComputeReactionsButton" Content="Compute Reactions" Width="140" Margin="5" Click="ComputeReactionsButton_Click"/>
-
             <Separator Width="20"/>
-
-            <!-- Column controls -->
             <Button x:Name="AddColumnButton" Content="Add Column" Width="100" Margin="5" Click="AddColumnButton_Click"/>
             <Button x:Name="ShowColumnsButton" Content="Show Columns" Width="110" Margin="5" Click="ShowColumnsButton_Click"/>
-
             <Separator Width="20"/>
-
-            <!-- View / Misc -->
             <Button x:Name="ClearButton" Content="Clear All" Width="100" Margin="5" Click="ClearButton_Click"/>
         </StackPanel>
 
         <!-- ================= LEFT PANEL ================= -->
         <StackPanel Grid.Row="1" Grid.Column="0"
                     Background="#FF3C3C3C"
-                    
                     VerticalAlignment="Stretch">
 
-            <TextBlock Text="Legend" FontWeight="Bold" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="10">
+                    <TextBlock Text="Legend" FontWeight="Bold" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
+                    <StackPanel Orientation="Vertical" Margin="10,0,0,0">
+                        <TextBlock Text="Blue: Beams (current floor)" Foreground="LightBlue" Margin="0,5"/>
+                        <TextBlock Text="Gray: Columns (current floor)" Foreground="LightGray" Margin="0,5"/>
+                        <TextBlock Text="Light Gray: Columns (below floor)" Foreground="#66FFFFFF" Margin="0,5"/>
+                        <TextBlock Text="Green: Supports / Reactions" Foreground="LightGreen" Margin="0,5"/>
+                        <TextBlock Text="Grid: Reference Lines" Foreground="LightSlateGray" Margin="0,5"/>
+                    </StackPanel>
 
-            <StackPanel Orientation="Vertical" Margin="10,0,0,0">
-                <TextBlock Text="Blue: Beams (current floor)" Foreground="LightBlue" Margin="0,5"/>
-                <TextBlock Text="Gray: Columns (current floor)" Foreground="LightGray" Margin="0,5"/>
-                <TextBlock Text="Light Gray: Columns (below floor)" Foreground="#66FFFFFF" Margin="0,5"/>
-                <TextBlock Text="Green: Supports / Reactions" Foreground="LightGreen" Margin="0,5"/>
-                <TextBlock Text="Grid: Reference Lines" Foreground="LightSlateGray" Margin="0,5"/>
-            </StackPanel>
+                    <Separator Margin="10,20,10,10"/>
 
-            <Separator Margin="10,20,10,10"/>
+                    <TextBlock Text="Member Data" FontWeight="Bold" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
+                    <DataGrid x:Name="BeamDataGrid"
+                              AutoGenerateColumns="True"
+                              CanUserAddRows="False"
+                              HeadersVisibility="Column"
+                              Background="White"
+                              Foreground="Black"
+                              Margin="0,5,0,20"
+                              Height="200"/>
 
-            <TextBlock Text="Member Data" FontWeight="Bold" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
-
-            <!-- DataGrid for beam/column data -->
-            <DataGrid x:Name="BeamDataGrid"
-                      AutoGenerateColumns="True"
-                      CanUserAddRows="False"
-                      HeadersVisibility="Column"
-                      Background="White"
-                      Foreground="Black"
-                      Height="Auto"
-                      Margin="0,5,0,10"/>
+                    <TextBlock Text="Nodal Connections" FontWeight="Bold" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
+                    <DataGrid x:Name="ConnectionDataGrid"
+                              AutoGenerateColumns="True"
+                              CanUserAddRows="False"
+                              HeadersVisibility="Column"
+                              Background="White"
+                              Foreground="Black"
+                              Height="250"
+                              Margin="0,5,0,10"/>
+                </StackPanel>
+            </ScrollViewer>
         </StackPanel>
 
         <!-- ================= DRAWING CANVAS ================= -->
@@ -89,23 +83,16 @@
                 Margin="10"
                 ClipToBounds="True">
             <Grid x:Name="CanvasContainer" Background="White">
-                <!-- Layer 1: Static grid (drawn once) -->
-                <Canvas x:Name="GridLayer"
-            IsHitTestVisible="False" />
-
-                <!-- Layer 2: Permanent structural members -->
+                <Canvas x:Name="GridLayer" IsHitTestVisible="False"/>
                 <Canvas x:Name="MemberLayer"
-            Background="Transparent"
-            MouseLeftButtonDown="MemberLayer_MouseLeftButtonDown"
-            MouseMove="MemberLayer_MouseMove"
-            MouseWheel="MainCanvas_MouseWheel" />
-
-                <!-- Layer 3: Temporary overlay (preview, highlights) -->
+                        Background="Transparent"
+                        MouseLeftButtonDown="MemberLayer_MouseLeftButtonDown"
+                        MouseMove="MemberLayer_MouseMove"
+                        MouseWheel="MainCanvas_MouseWheel"/>
                 <Canvas x:Name="OverlayLayer"
-            Background="Transparent"
-            IsHitTestVisible="False" />
+                        Background="Transparent"
+                        IsHitTestVisible="False"/>
             </Grid>
-
         </Border>
     </Grid>
 </Window>
