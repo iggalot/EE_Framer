@@ -21,7 +21,6 @@ namespace StructuralPlanner
             public Point Location { get; set; }
             public int Floor { get; set; }
 
-            // Keep a list of all connected members
             public List<StructuralMember> ConnectedMembers { get; } = new List<StructuralMember>();
 
             public Node()
@@ -32,7 +31,6 @@ namespace StructuralPlanner
 
             public string ConnectedMemberIDs => string.Join(", ", ConnectedMembers.Select(m => m.ID));
         }
-
 
         public class StructuralMember
         {
@@ -46,6 +44,8 @@ namespace StructuralPlanner
         private readonly List<Node> Nodes = new();
         private readonly List<StructuralMember> Members = new();
         private List<Node> polygonNodes = new List<Node>();
+        private readonly List<Polygon> finalizedPolygons = new List<Polygon>();
+
 
         private int currentFloor = 0;
         private bool addingBeam = false;
@@ -53,13 +53,10 @@ namespace StructuralPlanner
         private bool addingPolygon = false;
         private Point? pendingStartPoint = null;
         private Line tempLine = null;
-        private Polyline previewPolyline = null;
         private Polygon previewPolygon = null;
+        private Ellipse snapCircle = null;
+        private Line tempLineToMouse = null;  // For polygon preview line following mouse
 
-
-        private List<Node> tempPolygonNodes = new List<Node>();
-        private Polygon tempPolygonPreview = null;
-        private Line tempLineToMouse = null;
 
 
         private const double floorHeight = 200;
@@ -69,14 +66,21 @@ namespace StructuralPlanner
         private int columnCount = 0;
         private int nodeCount = 0;
 
+        private Line tempPolygonLine = null;
+
+
+        // Polygon parallel line preview
+        private Polygon currentPolygonForLines = null;
+        private List<Line> parallelLinePreview = new List<Line>();
+        private enum LineMode { PerpendicularEdge, Vertical, Horizontal }
+        private LineMode currentLineMode = LineMode.PerpendicularEdge;
+
         public MainWindow()
         {
             InitializeComponent();
             DrawGridLines();
             RedrawMembers();
         }
-
-
 
         // ==================== Floor Buttons ====================
         private void Floor1Button_Click(object sender, RoutedEventArgs e) { currentFloor = 0; RedrawMembers(); }
@@ -94,15 +98,25 @@ namespace StructuralPlanner
             addingBeam = false; addingColumn = true; pendingStartPoint = null; Mouse.OverrideCursor = Cursors.Cross;
         }
 
+        private void AddPolygonButton_Click(object sender, RoutedEventArgs e)
+        {
+            StartPolygonSelection();
+            MemberLayer.MouseLeftButtonDown += MemberLayer_MouseLeftButtonDown_Polygon;
+        }
+
         private void ClearButton_Click(object sender, RoutedEventArgs e)
         {
             Members.Clear();
             Nodes.Clear();
             pendingStartPoint = null;
+            tempLine = null;
+            tempPolygonLine = null;
+            tempLineToMouse = null;
             beamCount = 0;
             columnCount = 0;
             nodeCount = 0;
             OverlayLayer.Children.Clear();
+            MemberLayer.Children.Clear();
             RedrawMembers();
             UpdateDataGrid();
             UpdateNodeConnectionsDataGrid();
@@ -113,9 +127,23 @@ namespace StructuralPlanner
             MessageBox.Show("Reaction computation placeholder.");
         }
 
-        private void ShowColumnsButton_Click(object sender, RoutedEventArgs e)
+        // ==================== Polygon Alignment Buttons ====================
+        private void BtnEdgePerp_Click(object sender, RoutedEventArgs e)
         {
-            RedrawMembers();
+            currentLineMode = LineMode.PerpendicularEdge;
+            DrawParallelLinesPreview();
+        }
+
+        private void BtnVertical_Click(object sender, RoutedEventArgs e)
+        {
+            currentLineMode = LineMode.Vertical;
+            DrawParallelLinesPreview();
+        }
+
+        private void BtnHorizontal_Click(object sender, RoutedEventArgs e)
+        {
+            currentLineMode = LineMode.Horizontal;
+            DrawParallelLinesPreview();
         }
 
         // ==================== Canvas Events ====================
@@ -125,55 +153,6 @@ namespace StructuralPlanner
 
             if (addingBeam) HandleAddBeam(click);
             else if (addingColumn) HandleAddColumn(click);
-            else if (addingPolygon)
-            {
-                Node clickedNode = GetNearbyNode(click, currentFloor) ?? CreateNode(click, currentFloor);
-
-                // Prevent adding more than 4 nodes
-                if (polygonNodes.Count >= 4)
-                    return;
-
-                polygonNodes.Add(clickedNode);
-
-                UpdatePolygonPreview();
-
-                // Check if selection is complete
-                if (polygonNodes.Count == 4)
-                {
-                    if (!CanFormPolygon(polygonNodes))
-                    {
-                        MessageBox.Show("Invalid polygon selection: must have at least 3 distinct nodes and at most one collapsed edge.");
-                        polygonNodes.Clear();
-                        previewPolygon.Points.Clear();
-                        return;
-                    }
-
-                    // Sort clockwise
-                    var sorted = OrderNodesClockwise(polygonNodes);
-
-                    // Draw final polygon
-                    Polygon poly = new Polygon
-                    {
-                        Stroke = Brushes.Green,
-                        StrokeThickness = 2,
-                        Fill = new SolidColorBrush(Color.FromArgb(100, 0, 255, 0))
-                    };
-                    foreach (var n in sorted)
-                        poly.Points.Add(n.Location);
-
-                    OverlayLayer.Children.Add(poly);
-
-                    // Reset state
-                    polygonNodes.Clear();
-                    previewPolygon.Points.Clear();
-                    addingPolygon = false;
-                    Mouse.OverrideCursor = null;
-                }
-
-                return;
-            }
-
-
         }
 
         private void MemberLayer_MouseLeftButtonDown_Polygon(object sender, MouseButtonEventArgs e)
@@ -183,34 +162,38 @@ namespace StructuralPlanner
             Point click = e.GetPosition(MemberLayer);
             Node node = GetNearbyNode(click, currentFloor) ?? CreateNode(click, currentFloor);
 
-            if (!tempPolygonNodes.Contains(node))
-                tempPolygonNodes.Add(node);
+            if (!polygonNodes.Contains(node))
+                polygonNodes.Add(node);
 
-            // Finalize polygon when 4 nodes selected
-            if (tempPolygonNodes.Count == 4)
+            UpdatePolygonPreview();
+
+            // Update temporary line start
+            if (polygonNodes.Count >= 1)
             {
-                Polygon finalPolygon = new Polygon
+                if (tempPolygonLine == null)
                 {
-                    Stroke = Brushes.Green,
-                    StrokeThickness = 2,
-                    Fill = new SolidColorBrush(Color.FromArgb(50, 0, 255, 0))
-                };
+                    tempPolygonLine = new Line
+                    {
+                        Stroke = Brushes.Orange,
+                        StrokeThickness = 2,
+                        StrokeDashArray = new DoubleCollection { 4, 2 }
+                    };
+                    OverlayLayer.Children.Add(tempPolygonLine);
+                }
+                tempPolygonLine.X1 = node.Location.X;
+                tempPolygonLine.Y1 = node.Location.Y;
+            }
 
-                var sortedNodes = OrderNodesClockwise(tempPolygonNodes);
-                foreach (var n in sortedNodes)
-                    finalPolygon.Points.Add(n.Location);
+            if (polygonNodes.Count >= 3)
+            {
+                currentPolygonForLines = new Polygon();
+                foreach (var n in OrderNodesClockwise(polygonNodes))
+                    currentPolygonForLines.Points.Add(n.Location);
+            }
 
-                MemberLayer.Children.Add(finalPolygon);
-
-                // Reset
-                tempPolygonNodes.Clear();
-                addingPolygon = false;
-                OverlayLayer.Children.Clear();
-                tempPolygonPreview = null;
-                tempLineToMouse = null;
-
-                // Unsubscribe handler
-                MemberLayer.MouseLeftButtonDown -= MemberLayer_MouseLeftButtonDown_Polygon;
+            if (polygonNodes.Count == 4)
+            {
+                FinishPolygon();
             }
         }
 
@@ -218,142 +201,76 @@ namespace StructuralPlanner
         {
             Point mousePos = e.GetPosition(MemberLayer);
 
-            // --- Keep persistent preview polygon and snap/highlight circles separate ---
-            // Remove only temporary snap/highlight circles
-            var tempHighlights = OverlayLayer.Children.OfType<Ellipse>().ToList();
-            foreach (var h in tempHighlights) OverlayLayer.Children.Remove(h);
+            // --- Remove old snap circle if exists ---
+            if (snapCircle != null)
+                OverlayLayer.Children.Remove(snapCircle);
 
-            // --- Snap circle ---
-            Ellipse snapCircle = new Ellipse
-            {
-                Width = snapTolerance * 2,
-                Height = snapTolerance * 2,
-                Stroke = Brushes.Orange,
-                StrokeThickness = 1
-            };
-            Canvas.SetLeft(snapCircle, mousePos.X - snapTolerance);
-            Canvas.SetTop(snapCircle, mousePos.Y - snapTolerance);
-            OverlayLayer.Children.Add(snapCircle);
-
-            // --- Highlight closest node ---
+            // --- Determine closest node ---
             Node closestNode = Nodes
                 .Where(n => n.Floor == currentFloor)
                 .OrderBy(n => Distance(mousePos, n.Location))
                 .FirstOrDefault();
 
+            Point snapPos = mousePos;
+
             if (closestNode != null && Distance(mousePos, closestNode.Location) <= snapTolerance)
+                snapPos = closestNode.Location;
+
+            // --- Draw snap circle ---
+            if (addingBeam || addingBeam || addingPolygon)
             {
-                Ellipse highlight = new Ellipse
+
+                snapCircle = new Ellipse
                 {
-                    Width = 12,
-                    Height = 12,
-                    Fill = Brushes.Yellow,
-                    Opacity = 0.5
+                    Width = snapTolerance * 2,
+                    Height = snapTolerance * 2,
+                    Stroke = Brushes.Orange,
+                    StrokeThickness = 1
                 };
-                Canvas.SetLeft(highlight, closestNode.Location.X - 6);
-                Canvas.SetTop(highlight, closestNode.Location.Y - 6);
-                OverlayLayer.Children.Add(highlight);
+                Canvas.SetLeft(snapCircle, snapPos.X - snapTolerance);
+                Canvas.SetTop(snapCircle, snapPos.Y - snapTolerance);
+                OverlayLayer.Children.Add(snapCircle);
             }
 
-            // --- Polygon preview for node selection ---
-            Debug.WriteLine("\nAdding polygon: " + addingPolygon + ", nodes: " + polygonNodes.Count);
+            // --- Polygon preview line to mouse ---
             if (addingPolygon && polygonNodes.Count > 0)
             {
-                if (previewPolygon == null)
+                Point lastPoint = polygonNodes.Last().Location;
+
+                if (tempLineToMouse != null)
+                    OverlayLayer.Children.Remove(tempLineToMouse);
+
+                tempLineToMouse = DrawTempLine(lastPoint, snapPos);
+
+                if(OverlayLayer.Children.Contains(tempLineToMouse) is false)
                 {
-                    previewPolygon = new Polygon
-                    {
-                        Stroke = Brushes.Green,
-                        StrokeThickness = 2,
-                        StrokeDashArray = new DoubleCollection { 4, 2 },
-                        Fill = new SolidColorBrush(Color.FromArgb(50, 0, 255, 0))
-                    };
-                    OverlayLayer.Children.Add(previewPolygon);
-                }
-
-                // Clear points and rebuild preview polygon
-                previewPolygon.Points.Clear();
-
-                // Add selected nodes
-                foreach (var n in polygonNodes)
-                    previewPolygon.Points.Add(n.Location);
-
-                // Add preview point for the edge currently being selected
-                if (polygonNodes.Count < 4)
-                {
-                    Point nextPoint = (closestNode != null && Distance(mousePos, closestNode.Location) <= snapTolerance)
-                        ? closestNode.Location
-                        : mousePos;
-
-                    previewPolygon.Points.Add(nextPoint);
-
-                    // If 2 nodes selected, draw connecting line between them + preview line
-                    if (polygonNodes.Count == 1)
-                    {
-                        previewPolygon.Points.Add(polygonNodes[0].Location); // Line back to first for visual cue
-                    }
-                    else if (polygonNodes.Count == 2)
-                    {
-                        // Line between 2 nodes + preview to mouse
-                        previewPolygon.Points.Add(polygonNodes[0].Location);
-                    }
-                    else if (polygonNodes.Count == 3)
-                    {
-                        // Shaded triangle preview
-                        // previewPolygon already has 3 points + mouse position
-                    }
+                    OverlayLayer.Children.Add(tempLineToMouse);
                 }
             }
 
-            // --- Update node connections grid ---
-            UpdateNodeConnectionsDataGrid();
+            if (addingBeam && pendingStartPoint.HasValue)
+            {
+                if(tempLineToMouse != null)
+                    OverlayLayer.Children.Remove(tempLineToMouse);
 
-            // --- Temporary line for beam/column ---
-            if ((addingBeam || addingColumn) && pendingStartPoint != null)
-                DrawTempLine(pendingStartPoint.Value, mousePos);
+                tempLineToMouse = DrawTempLine(pendingStartPoint.Value, mousePos);
+
+                if (OverlayLayer.Children.Contains(tempLineToMouse) is false)
+                {
+                    OverlayLayer.Children.Add(tempLineToMouse);
+                }
+            }
         }
 
-
-
-        private void MainCanvas_MouseWheel(object sender, MouseWheelEventArgs e)
-        {
-            // Optional zoom placeholder
-        }
+        private void MainCanvas_MouseWheel(object sender, MouseWheelEventArgs e) { /* Optional zoom */ }
 
         private void CreateRoofButton_Click(object sender, RoutedEventArgs e)
         {
             CreateTestRoof();
         }
 
-        private void AddPolygonButton_Click(object sender, RoutedEventArgs e)
-        {
-            StartPolygonSelection();
-            MemberLayer.MouseLeftButtonDown += MemberLayer_MouseLeftButtonDown_Polygon;
-        }
-
-
-
-
-        // ==================== Node Management ====================
-        private List<Node> OrderNodesClockwise(List<Node> nodes)
-        {
-            var center = new Point(
-                nodes.Average(n => n.Location.X),
-                nodes.Average(n => n.Location.Y));
-
-            return nodes.OrderBy(n =>
-            {
-                double angle = Math.Atan2(n.Location.Y - center.Y, n.Location.X - center.X);
-                return angle;
-            }).ToList();
-        }
-
-
-
-        private Node GetNearbyNode(Point p, int floor)
-        {
-            return Nodes.FirstOrDefault(n => n.Floor == floor && Distance(n.Location, p) <= snapTolerance);
-        }
+        // ==================== Node / Member Methods ====================
+        private Node GetNearbyNode(Point p, int floor) => Nodes.FirstOrDefault(n => n.Floor == floor && Distance(n.Location, p) <= snapTolerance);
 
         private Node CreateNode(Point p, int floor)
         {
@@ -364,7 +281,6 @@ namespace StructuralPlanner
 
         private double Distance(Point a, Point b) => Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Y - b.Y, 2));
 
-        // ==================== Adding Members ====================
         private void HandleAddBeam(Point click)
         {
             Node clickedNode = GetNearbyNode(click, currentFloor) ?? CreateNode(click, currentFloor);
@@ -376,17 +292,13 @@ namespace StructuralPlanner
             else
             {
                 Node startNode = GetNearbyNode(pendingStartPoint.Value, currentFloor) ?? CreateNode(pendingStartPoint.Value, currentFloor);
-
-                CreateBeam(startNode, clickedNode);  // ✅ clean delegation
-
+                CreateBeam(startNode, clickedNode);
                 pendingStartPoint = null;
                 addingBeam = false;
                 Mouse.OverrideCursor = null;
                 OverlayLayer.Children.Clear();
             }
         }
-
-
 
         private void HandleAddColumn(Point click)
         {
@@ -405,7 +317,6 @@ namespace StructuralPlanner
             var member = new StructuralMember { ID = $"C{columnCount}", Type = MemberType.Column, StartNode = topNode, EndNode = bottomNode };
             Members.Add(member);
 
-            // 🔹 Track connection in both nodes
             topNode.ConnectedMembers.Add(member);
             bottomNode.ConnectedMembers.Add(member);
 
@@ -415,32 +326,6 @@ namespace StructuralPlanner
             UpdateDataGrid();
             UpdateNodeConnectionsDataGrid();
         }
-
-        private void HandleAddPolygon(Point click)
-        {
-            // Snap to existing node if within tolerance
-            Node nearest = GetNearbyNode(click, currentFloor);
-            Node vertexNode = nearest ?? CreateNode(click, currentFloor);
-
-            // Avoid duplicates
-            if (polygonNodes.Contains(vertexNode))
-                return;
-
-            // If adding this edge would cause self-intersection, reject
-            if (polygonNodes.Count >= 3 && WouldIntersect(vertexNode.Location))
-            {
-                MessageBox.Show("Adding this point would create intersecting edges.", "Invalid Polygon", MessageBoxButton.OK, MessageBoxImage.Warning);
-                return;
-            }
-
-            polygonNodes.Add(vertexNode);
-
-            // Update preview polygon
-            previewPolygon.Points.Clear();
-            foreach (var n in polygonNodes)
-                previewPolygon.Points.Add(n.Location);
-        }
-
 
         private void CreateBeam(Node startNode, Node endNode)
         {
@@ -455,149 +340,26 @@ namespace StructuralPlanner
 
             Members.Add(member);
 
-            // Track connections in both nodes
             startNode.ConnectedMembers.Add(member);
             endNode.ConnectedMembers.Add(member);
 
-            // Redraw and refresh
             RedrawMembers();
             UpdateDataGrid();
             UpdateNodeConnectionsDataGrid();
         }
 
-        private void CreateTestPolygon()
+        private List<Node> OrderNodesClockwise(List<Node> nodes)
         {
-            tempPolygonNodes.Clear();
-
-            // Create temporary preview polygon
-            if (tempPolygonPreview != null)
-                OverlayLayer.Children.Remove(tempPolygonPreview);
-
-            tempPolygonPreview = new Polygon
-            {
-                Stroke = Brushes.Green,
-                StrokeThickness = 2,
-                Fill = new SolidColorBrush(Color.FromArgb(50, 0, 255, 0)) // semi-transparent fill
-            };
-            OverlayLayer.Children.Add(tempPolygonPreview);
-
-            MessageBox.Show("Click 3 or 4 distinct nodes to form the polygon. Nodes will snap automatically.");
-
-            MouseButtonEventHandler handler = null;
-            handler = (s, e) =>
-            {
-                Point click = e.GetPosition(MemberLayer);
-                Node node = GetNearbyNode(click, currentFloor) ?? CreateNode(click, currentFloor);
-
-                // Avoid duplicate nodes
-                if (!tempPolygonNodes.Contains(node))
-                    tempPolygonNodes.Add(node);
-
-                // Update preview polygon with ordered points
-                tempPolygonPreview.Points.Clear();
-                foreach (var n in OrderNodesClockwise(tempPolygonNodes))
-                    tempPolygonPreview.Points.Add(n.Location);
-
-                // Optional: also draw lines from last node to cursor for live feedback
-                DrawPolygonPreviewLineToMouse();
-
-                // Finalize polygon when 4 nodes selected
-                if (tempPolygonNodes.Count == 4)
-                {
-                    Polygon finalPolygon = new Polygon
-                    {
-                        Stroke = Brushes.Green,
-                        StrokeThickness = 2,
-                        Fill = new SolidColorBrush(Color.FromArgb(50, 0, 255, 0))
-                    };
-
-                    foreach (var n in OrderNodesClockwise(tempPolygonNodes))
-                        finalPolygon.Points.Add(n.Location);
-
-                    MemberLayer.Children.Add(finalPolygon);
-
-                    // Cleanup
-                    OverlayLayer.Children.Remove(tempPolygonPreview);
-                    tempPolygonPreview = null;
-                    tempPolygonNodes.Clear();
-
-                    MemberLayer.MouseLeftButtonDown -= handler;
-                }
-            };
-
-            MemberLayer.MouseLeftButtonDown += handler;
+            var center = new Point(nodes.Average(n => n.Location.X), nodes.Average(n => n.Location.Y));
+            return nodes.OrderBy(n => Math.Atan2(n.Location.Y - center.Y, n.Location.X - center.X)).ToList();
         }
 
-
-        private void StartPolygonSelection()
-        {
-            tempPolygonNodes.Clear();
-            addingPolygon = true;
-
-            if (tempPolygonPreview != null)
-                OverlayLayer.Children.Remove(tempPolygonPreview);
-
-            tempPolygonPreview = new Polygon
-            {
-                Stroke = Brushes.Green,
-                StrokeThickness = 2,
-                Fill = new SolidColorBrush(Color.FromArgb(50, 0, 255, 0))
-            };
-            OverlayLayer.Children.Add(tempPolygonPreview);
-
-            MessageBox.Show("Click 3 or 4 distinct nodes to form the polygon. Nodes will snap automatically.");
-        }
-
-        private void FinishPolygon()
-        {
-            if (polygonNodes.Count >= 3)
-            {
-                previewPolygon.Points.Clear();
-                foreach (var n in polygonNodes)
-                    previewPolygon.Points.Add(n.Location);
-
-                // Optionally add to a Polygon collection for reference later
-                // SavedPolygons.Add(previewPolygon);
-
-                MessageBox.Show($"Polygon created with {polygonNodes.Count} nodes.");
-            }
-
-            addingPolygon = false;
-            polygonNodes.Clear();
-            Mouse.OverrideCursor = null;
-        }
-
-
-
-
-
-        // ==================== Drawing ====================
         private void DrawGridLines()
         {
             GridLayer.Children.Clear();
             double spacing = 20, width = 1200, height = 800;
-
-            for (double x = 0; x < width; x += spacing)
-                GridLayer.Children.Add(new Line
-                {
-                    X1 = x,
-                    Y1 = 0,
-                    X2 = x,
-                    Y2 = height,
-                    Stroke = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0)),
-                    StrokeThickness = 1
-                });
-
-            for (double y = 0; y < height; y += spacing)
-                GridLayer.Children.Add(new Line
-                {
-                    X1 = 0,
-                    Y1 = y,
-                    X2 = width,
-                    Y2 = y,
-                    Stroke = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0)),
-                    StrokeThickness = 1
-                });
+            for (double x = 0; x < width; x += spacing) GridLayer.Children.Add(new Line { X1 = x, Y1 = 0, X2 = x, Y2 = height, Stroke = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0)), StrokeThickness = 1 });
+            for (double y = 0; y < height; y += spacing) GridLayer.Children.Add(new Line { X1 = 0, Y1 = y, X2 = width, Y2 = y, Stroke = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0)), StrokeThickness = 1 });
         }
 
         private void RedrawMembers()
@@ -605,63 +367,42 @@ namespace StructuralPlanner
             MemberLayer.Children.Clear();
             OverlayLayer.Children.Clear();
 
-            // Draw members on current floor
             foreach (var m in Members.Where(m => m.Floor == currentFloor))
                 DrawMember(MemberLayer, m, 1.0);
-
-            // Draw faint members from floor below
             if (currentFloor > 0)
-            {
                 foreach (var m in Members.Where(m => m.Floor == currentFloor - 1))
                     DrawMember(MemberLayer, m, 0.3);
-            }
 
-            // Draw nodes for current floor
             foreach (var n in Nodes.Where(n => n.Floor == currentFloor))
                 DrawNode(MemberLayer, n);
 
-            // Update data grids
+            // Redraw finalized polygons only for current floor
+            foreach (var poly in finalizedPolygons)
+            {
+                if (poly.Points.Count == 0)
+                    continue;
+
+                // Determine floor from first node that matches a polygon point
+                var firstPoint = poly.Points[0];
+                var node = Nodes.FirstOrDefault(n => n.Location == firstPoint);
+                if (node != null && node.Floor == currentFloor)
+                {
+                    if (!MemberLayer.Children.Contains(poly))
+                        MemberLayer.Children.Add(poly);
+                }
+            }
+
+
+            // Keep preview polygon and temp line if they exist
+            if (previewPolygon != null && !OverlayLayer.Children.Contains(previewPolygon))
+                OverlayLayer.Children.Add(previewPolygon);
+
+            if (tempLineToMouse != null && !OverlayLayer.Children.Contains(tempLineToMouse))
+                OverlayLayer.Children.Add(tempLineToMouse);
+
+
             UpdateDataGrid();
             UpdateNodeConnectionsDataGrid();
-        }
-
-        private void DrawTempLine(Point start, Point end)
-        {
-            tempLine = new Line
-            {
-                X1 = start.X,
-                Y1 = start.Y,
-                X2 = end.X,
-                Y2 = end.Y,
-                Stroke = Brushes.Orange,
-                StrokeThickness = 2,
-                StrokeDashArray = new DoubleCollection { 4, 2 }
-            };
-            OverlayLayer.Children.Add(tempLine);
-        }
-
-        private void DrawPolygonPreviewLineToMouse()
-        {
-            if (tempLineToMouse != null)
-                OverlayLayer.Children.Remove(tempLineToMouse);
-
-            if (tempPolygonNodes.Count == 0) return;
-
-            Point last = tempPolygonNodes.Last().Location;
-            Point mouse = Mouse.GetPosition(MemberLayer);
-
-            tempLineToMouse = new Line
-            {
-                X1 = last.X,
-                Y1 = last.Y,
-                X2 = mouse.X,
-                Y2 = mouse.Y,
-                Stroke = Brushes.Lime,
-                StrokeThickness = 2,
-                StrokeDashArray = new DoubleCollection { 4, 2 }
-            };
-
-            OverlayLayer.Children.Add(tempLineToMouse);
         }
 
         private void DrawMember(Canvas cnv, StructuralMember m, double opacity)
@@ -669,60 +410,28 @@ namespace StructuralPlanner
             Brush stroke = m.Type == MemberType.Beam ? Brushes.SteelBlue : Brushes.Gray;
             double thickness = m.Type == MemberType.Beam ? 3 : 4;
 
-            cnv.Children.Add(new Line
-            {
-                X1 = m.StartNode.Location.X,
-                Y1 = m.StartNode.Location.Y,
-                X2 = m.EndNode.Location.X,
-                Y2 = m.EndNode.Location.Y,
-                Stroke = stroke,
-                StrokeThickness = thickness,
-                Opacity = opacity
-            });
+            cnv.Children.Add(new Line { X1 = m.StartNode.Location.X, Y1 = m.StartNode.Location.Y, X2 = m.EndNode.Location.X, Y2 = m.EndNode.Location.Y, Stroke = stroke, StrokeThickness = thickness, Opacity = opacity });
 
-            // Draw member ID label at midpoint
-            TextBlock lbl = new TextBlock
-            {
-                Text = m.ID,
-                Foreground = Brushes.Black,
-                FontWeight = FontWeights.Bold,
-                Background = Brushes.White
-            };
-            double midX = (m.StartNode.Location.X + m.EndNode.Location.X) / 2;
-            double midY = (m.StartNode.Location.Y + m.EndNode.Location.Y) / 2;
-            Canvas.SetLeft(lbl, midX + 2);
-            Canvas.SetTop(lbl, midY + 2);
+            TextBlock lbl = new TextBlock { Text = m.ID, Foreground = Brushes.Black, FontWeight = FontWeights.Bold, Background = Brushes.White };
+            Canvas.SetLeft(lbl, (m.StartNode.Location.X + m.EndNode.Location.X) / 2 + 2);
+            Canvas.SetTop(lbl, (m.StartNode.Location.Y + m.EndNode.Location.Y) / 2 + 2);
             cnv.Children.Add(lbl);
         }
 
         private void DrawNode(Canvas cnv, Node n)
         {
             double size = 6;
-            Ellipse ellipse = new Ellipse
-            {
-                Width = size,
-                Height = size,
-                Fill = Brushes.Red,
-                Stroke = Brushes.Black,
-                StrokeThickness = 1
-            };
+            Ellipse ellipse = new Ellipse { Width = size, Height = size, Fill = Brushes.Red, Stroke = Brushes.Black, StrokeThickness = 1 };
             Canvas.SetLeft(ellipse, n.Location.X - size / 2);
             Canvas.SetTop(ellipse, n.Location.Y - size / 2);
             cnv.Children.Add(ellipse);
 
-            // Draw node ID
-            TextBlock lbl = new TextBlock
-            {
-                Text = n.NodeID,
-                Foreground = Brushes.Black,
-                FontWeight = FontWeights.Bold
-            };
+            TextBlock lbl = new TextBlock { Text = n.NodeID, Foreground = Brushes.Black, FontWeight = FontWeights.Bold };
             Canvas.SetLeft(lbl, n.Location.X + 4);
             Canvas.SetTop(lbl, n.Location.Y - 4);
             cnv.Children.Add(lbl);
         }
 
-        // ==================== Update DataGrids ====================
         private void UpdateDataGrid()
         {
             var tableData = Members.Select(m => new
@@ -739,27 +448,6 @@ namespace StructuralPlanner
             BeamDataGrid.ItemsSource = tableData;
         }
 
-        private void CreateTestRoof()
-        {
-            if (currentFloor < 0)
-            {
-                MessageBox.Show("Please select a valid floor first.");
-                return;
-            }
-
-            // Create 4 nodes in a square
-            Node n1 = CreateNode(new Point(100, 100), currentFloor);
-            Node n2 = CreateNode(new Point(300, 100), currentFloor);
-            Node n3 = CreateNode(new Point(300, 300), currentFloor);
-            Node n4 = CreateNode(new Point(100, 300), currentFloor);
-
-            // Connect with 4 beams
-            CreateBeam(n1, n2);
-            CreateBeam(n2, n3);
-            CreateBeam(n3, n4);
-            CreateBeam(n4, n1);
-        }
-
         private void UpdateNodeConnectionsDataGrid()
         {
             var data = Nodes.Select(n => new
@@ -772,79 +460,146 @@ namespace StructuralPlanner
             NodeConnectionsDataGrid.ItemsSource = data;
         }
 
-        private bool WouldIntersect(Point newPoint)
+        private Line DrawTempLine(Point start, Point end)
         {
-            if (polygonNodes.Count < 2) return false;
+            if (tempLine != null) OverlayLayer.Children.Remove(tempLine);
+            tempLine = new Line { X1 = start.X, Y1 = start.Y, X2 = end.X, Y2 = end.Y, Stroke = Brushes.Orange, StrokeThickness = 2, StrokeDashArray = new DoubleCollection { 4, 2 } };
+            OverlayLayer.Children.Add(tempLine);
 
-            Point lastPoint = polygonNodes[polygonNodes.Count - 1].Location;
+            return tempLine;
+        }
 
-            for (int i = 0; i < polygonNodes.Count - 2; i++)
+        private void StartPolygonSelection()
+        {
+            polygonNodes.Clear();
+            addingPolygon = true;
+            if (previewPolygon != null) OverlayLayer.Children.Remove(previewPolygon);
+
+            previewPolygon = new Polygon { Stroke = Brushes.Green, StrokeThickness = 2, StrokeDashArray = new DoubleCollection { 4, 2 }, Fill = new SolidColorBrush(Color.FromArgb(50, 0, 255, 0)) };
+            OverlayLayer.Children.Add(previewPolygon);
+
+            MessageBox.Show("Click 3 or 4 distinct nodes to form the polygon. Nodes will snap automatically.");
+        }
+
+        private void FinishPolygon()
+        {
+            if (polygonNodes.Count >= 3)
             {
-                Point a1 = polygonNodes[i].Location;
-                Point a2 = polygonNodes[i + 1].Location;
+                // Sort nodes clockwise
+                var sortedNodes = OrderNodesClockwise(polygonNodes);
 
-                if (DoSegmentsIntersect(a1, a2, lastPoint, newPoint))
-                    return true;
+                // Create the final polygon
+                Polygon finalPolygon = new Polygon
+                {
+                    Stroke = Brushes.Green,
+                    StrokeThickness = 2,
+                    Fill = new SolidColorBrush(Color.FromArgb(100, 0, 255, 0))
+                };
+
+                foreach (var n in sortedNodes)
+                    finalPolygon.Points.Add(n.Location);
+
+                // Add to overlay and store reference so it persists on redraw
+                MemberLayer.Children.Add(finalPolygon);
+                finalizedPolygons.Add(finalPolygon);
+
+                // Clear temporary preview
+                if (previewPolygon != null)
+                {
+                    OverlayLayer.Children.Remove(previewPolygon);
+                    previewPolygon = null;
+                }
+
+                // Clear temp line to mouse
+                if (tempLineToMouse != null)
+                {
+                    OverlayLayer.Children.Remove(tempLineToMouse);
+                    tempLineToMouse = null;
+                }
+
+                MessageBox.Show($"Polygon created with {polygonNodes.Count} nodes.");
             }
 
-            return false;
+            // Reset polygon state
+            polygonNodes.Clear();
+            addingPolygon = false;
+            Mouse.OverrideCursor = null;
         }
-
-        private bool DoSegmentsIntersect(Point p1, Point p2, Point p3, Point p4)
-        {
-            double d1 = Direction(p3, p4, p1);
-            double d2 = Direction(p3, p4, p2);
-            double d3 = Direction(p1, p2, p3);
-            double d4 = Direction(p1, p2, p4);
-
-            if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
-                ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0)))
-                return true;
-
-            return false;
-        }
-
-        private double Direction(Point a, Point b, Point c)
-        {
-            return (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
-        }
-
-        private bool CanFormPolygon(List<Node> nodes)
-        {
-            var uniquePoints = nodes
-                .GroupBy(n => new { n.Location.X, n.Location.Y })
-                .Select(g => g.First())
-                .ToList();
-
-            int duplicateCount = nodes.Count - uniquePoints.Count;
-
-            // Only allow 0 or 1 collapsed edge
-            if (duplicateCount > 1)
-                return false;
-
-            // Minimum 3 distinct points
-            if (uniquePoints.Count < 3)
-                return false;
-
-            return true;
-        }
-
 
         private void UpdatePolygonPreview()
         {
-            if (previewPolygon == null)
-                return;
+            if (previewPolygon == null) return;
 
             previewPolygon.Points.Clear();
-            foreach (var n in polygonNodes)
-                previewPolygon.Points.Add(n.Location);
-
-            // Optional: close preview if at least 2 points
+            foreach (var n in polygonNodes) previewPolygon.Points.Add(n.Location);
             if (polygonNodes.Count >= 2)
                 previewPolygon.Points.Add(polygonNodes[0].Location);
         }
 
+        private void CreateTestRoof()
+        {
+            Node n1 = CreateNode(new Point(100, 100), currentFloor);
+            Node n2 = CreateNode(new Point(300, 100), currentFloor);
+            Node n3 = CreateNode(new Point(300, 300), currentFloor);
+            Node n4 = CreateNode(new Point(100, 300), currentFloor);
 
+            CreateBeam(n1, n2);
+            CreateBeam(n2, n3);
+            CreateBeam(n3, n4);
+            CreateBeam(n4, n1);
+        }
 
+        // ==================== Polygon Parallel Lines ====================
+        private void DrawParallelLinesPreview()
+        {
+            // Remove previous
+            parallelLinePreview.ForEach(l => OverlayLayer.Children.Remove(l));
+            parallelLinePreview.Clear();
+            if (currentPolygonForLines == null) return;
+
+            List<Point> pts = currentPolygonForLines.Points.Select(p => new Point(p.X, p.Y)).ToList();
+
+            if (pts.Count < 3) return;
+
+            Rect bounds = new Rect(pts.Min(p => p.X), pts.Min(p => p.Y), pts.Max(p => p.X) - pts.Min(p => p.X), pts.Max(p => p.Y) - pts.Min(p => p.Y));
+            double spacing = 15;
+
+            if (currentLineMode == LineMode.Horizontal)
+            {
+                for (double y = bounds.Top; y <= bounds.Bottom; y += spacing)
+                {
+                    Line l = new Line { X1 = bounds.Left, X2 = bounds.Right, Y1 = y, Y2 = y, Stroke = Brushes.Purple, StrokeThickness = 1 };
+                    OverlayLayer.Children.Add(l);
+                    parallelLinePreview.Add(l);
+                }
+            }
+            else if (currentLineMode == LineMode.Vertical)
+            {
+                for (double x = bounds.Left; x <= bounds.Right; x += spacing)
+                {
+                    Line l = new Line { X1 = x, X2 = x, Y1 = bounds.Top, Y2 = bounds.Bottom, Stroke = Brushes.Purple, StrokeThickness = 1 };
+                    OverlayLayer.Children.Add(l);
+                    parallelLinePreview.Add(l);
+                }
+            }
+            else if (currentLineMode == LineMode.PerpendicularEdge)
+            {
+                // Simple demo: perpendicular to first edge
+                Point a = pts[0], b = pts[1];
+                Vector edge = b - a;
+                Vector perp = new Vector(-edge.Y, edge.X);
+                perp.Normalize();
+                double len = edge.Length;
+                int lines = (int)(len / spacing);
+
+                for (int i = 0; i < lines; i++)
+                {
+                    Vector offset = perp * spacing * i;
+                    Line l = new Line { X1 = a.X + offset.X, Y1 = a.Y + offset.Y, X2 = b.X + offset.X, Y2 = b.Y + offset.Y, Stroke = Brushes.Purple, StrokeThickness = 1 };
+                    OverlayLayer.Children.Add(l);
+                    parallelLinePreview.Add(l);
+                }
+            }
+        }
     }
 }

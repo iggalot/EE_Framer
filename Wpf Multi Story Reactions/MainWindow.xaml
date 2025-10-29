@@ -37,7 +37,6 @@
 
             <!-- Column controls -->
             <Button x:Name="AddColumnButton" Content="Add Column" Width="100" Margin="5" Click="AddColumnButton_Click"/>
-            <Button x:Name="ShowColumnsButton" Content="Show Columns" Width="110" Margin="5" Click="ShowColumnsButton_Click"/>
             <Button x:Name="AddPolygonButton" Content="Add Polygon" Width="110" Margin="5" Click="AddPolygonButton_Click"/>
 
             <Separator Width="20"/>
@@ -106,6 +105,11 @@
                 Margin="10"
                 ClipToBounds="True">
             <Grid x:Name="CanvasContainer" Background="White">
+                <StackPanel Orientation="Horizontal" >
+                    <Button x:Name="BtnEdgePerp" Content="⊥ Edge" Width="70" Margin="4" Click="BtnEdgePerp_Click"/>
+                    <Button x:Name="BtnVertical" Content="↕ Vert" Width="70" Margin="4" Click="BtnVertical_Click"/>
+                    <Button x:Name="BtnHorizontal" Content="↔ Horz" Width="70" Margin="4" Click="BtnHorizontal_Click"/>
+                </StackPanel>
                 <Canvas x:Name="GridLayer" IsHitTestVisible="False"/>
                 <Canvas x:Name="MemberLayer"
                         Background="Transparent"
