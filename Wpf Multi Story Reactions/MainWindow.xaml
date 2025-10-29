@@ -43,6 +43,8 @@
 
             <!-- Misc -->
             <Button x:Name="ClearButton" Content="Clear All" Width="100" Margin="5" Click="ClearButton_Click"/>
+            <Button x:Name="CreateRoofButton" Content="Create Test Roof" Width="130" Margin="5" Click="CreateRoofButton_Click"/>
+
         </StackPanel>
 
         <!-- ================= LEFT PANEL ================= -->

@@ -65,6 +65,8 @@ namespace StructuralPlanner
             RedrawMembers();
         }
 
+
+
         // ==================== Floor Buttons ====================
         private void Floor1Button_Click(object sender, RoutedEventArgs e) { currentFloor = 0; RedrawMembers(); }
         private void Floor2Button_Click(object sender, RoutedEventArgs e) { currentFloor = 1; RedrawMembers(); }
@@ -166,6 +168,13 @@ namespace StructuralPlanner
             // Optional zoom placeholder
         }
 
+        private void CreateRoofButton_Click(object sender, RoutedEventArgs e)
+        {
+            CreateTestRoof();
+        }
+
+
+
         // ==================== Node Management ====================
         private Node GetNearbyNode(Point p, int floor)
         {
@@ -193,23 +202,16 @@ namespace StructuralPlanner
             else
             {
                 Node startNode = GetNearbyNode(pendingStartPoint.Value, currentFloor) ?? CreateNode(pendingStartPoint.Value, currentFloor);
-                beamCount++;
-                var member = new StructuralMember { ID = $"B{beamCount}", Type = MemberType.Beam, StartNode = startNode, EndNode = clickedNode };
-                Members.Add(member);
 
-                // 🔹 Track connection in both nodes
-                startNode.ConnectedMembers.Add(member);
-                clickedNode.ConnectedMembers.Add(member);
+                CreateBeam(startNode, clickedNode);  // ✅ clean delegation
 
                 pendingStartPoint = null;
                 addingBeam = false;
                 Mouse.OverrideCursor = null;
                 OverlayLayer.Children.Clear();
-                RedrawMembers();
-                UpdateDataGrid();
-                UpdateNodeConnectionsDataGrid();
             }
         }
+
 
 
         private void HandleAddColumn(Point click)
@@ -223,7 +225,7 @@ namespace StructuralPlanner
             }
 
             Node topNode = GetNearbyNode(click, currentFloor) ?? CreateNode(click, currentFloor);
-            Node bottomNode = GetNearbyNode(new Point(click.X, click.Y + floorHeight), currentFloor - 1) ?? CreateNode(new Point(click.X, click.Y + floorHeight), currentFloor - 1);
+            Node bottomNode = GetNearbyNode(new Point(click.X, click.Y), currentFloor - 1) ?? CreateNode(new Point(click.X, click.Y), currentFloor - 1);
 
             columnCount++;
             var member = new StructuralMember { ID = $"C{columnCount}", Type = MemberType.Column, StartNode = topNode, EndNode = bottomNode };
@@ -239,6 +241,30 @@ namespace StructuralPlanner
             UpdateDataGrid();
             UpdateNodeConnectionsDataGrid();
         }
+
+        private void CreateBeam(Node startNode, Node endNode)
+        {
+            beamCount++;
+            var member = new StructuralMember
+            {
+                ID = $"B{beamCount}",
+                Type = MemberType.Beam,
+                StartNode = startNode,
+                EndNode = endNode
+            };
+
+            Members.Add(member);
+
+            // Track connections in both nodes
+            startNode.ConnectedMembers.Add(member);
+            endNode.ConnectedMembers.Add(member);
+
+            // Redraw and refresh
+            RedrawMembers();
+            UpdateDataGrid();
+            UpdateNodeConnectionsDataGrid();
+        }
+
 
 
         // ==================== Drawing ====================
@@ -383,6 +409,27 @@ namespace StructuralPlanner
             }).ToList();
 
             BeamDataGrid.ItemsSource = tableData;
+        }
+
+        private void CreateTestRoof()
+        {
+            if (currentFloor < 0)
+            {
+                MessageBox.Show("Please select a valid floor first.");
+                return;
+            }
+
+            // Create 4 nodes in a square
+            Node n1 = CreateNode(new Point(100, 100), currentFloor);
+            Node n2 = CreateNode(new Point(300, 100), currentFloor);
+            Node n3 = CreateNode(new Point(300, 300), currentFloor);
+            Node n4 = CreateNode(new Point(100, 300), currentFloor);
+
+            // Connect with 4 beams
+            CreateBeam(n1, n2);
+            CreateBeam(n2, n3);
+            CreateBeam(n3, n4);
+            CreateBeam(n4, n1);
         }
 
         private void UpdateNodeConnectionsDataGrid()
