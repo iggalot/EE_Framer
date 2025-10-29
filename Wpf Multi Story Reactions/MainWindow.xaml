@@ -38,6 +38,7 @@
             <!-- Column controls -->
             <Button x:Name="AddColumnButton" Content="Add Column" Width="100" Margin="5" Click="AddColumnButton_Click"/>
             <Button x:Name="ShowColumnsButton" Content="Show Columns" Width="110" Margin="5" Click="ShowColumnsButton_Click"/>
+            <Button x:Name="AddPolygonButton" Content="Add Polygon" Width="110" Margin="5" Click="AddPolygonButton_Click"/>
 
             <Separator Width="20"/>
 

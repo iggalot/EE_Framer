@@ -44,12 +44,19 @@ namespace StructuralPlanner
 
         private readonly List<Node> Nodes = new();
         private readonly List<StructuralMember> Members = new();
+        private List<Node> polygonNodes = new List<Node>();
 
         private int currentFloor = 0;
         private bool addingBeam = false;
         private bool addingColumn = false;
+        private bool addingPolygon = false;
         private Point? pendingStartPoint = null;
         private Line tempLine = null;
+        private Polygon previewPolygon;
+
+        private List<Node> tempPolygonNodes = new();
+        private Polygon tempPolygonPreview = null;
+
 
         private const double floorHeight = 200;
         private const double snapTolerance = 15;
@@ -114,6 +121,12 @@ namespace StructuralPlanner
 
             if (addingBeam) HandleAddBeam(click);
             else if (addingColumn) HandleAddColumn(click);
+            else if (addingPolygon)
+            {
+                HandleAddPolygon(e.GetPosition(MemberLayer));
+                return;
+            }
+
         }
 
         private void MemberLayer_MouseMove(object sender, MouseEventArgs e)
@@ -171,6 +184,11 @@ namespace StructuralPlanner
         private void CreateRoofButton_Click(object sender, RoutedEventArgs e)
         {
             CreateTestRoof();
+        }
+
+        private void AddPolygonButton_Click(object sender, RoutedEventArgs e)
+        {
+            CreateTestPolygon();
         }
 
 
@@ -242,6 +260,32 @@ namespace StructuralPlanner
             UpdateNodeConnectionsDataGrid();
         }
 
+        private void HandleAddPolygon(Point click)
+        {
+            // Snap to existing node if within tolerance
+            Node nearest = GetNearbyNode(click, currentFloor);
+            Node vertexNode = nearest ?? CreateNode(click, currentFloor);
+
+            // Avoid duplicates
+            if (polygonNodes.Contains(vertexNode))
+                return;
+
+            // If adding this edge would cause self-intersection, reject
+            if (polygonNodes.Count >= 3 && WouldIntersect(vertexNode.Location))
+            {
+                MessageBox.Show("Adding this point would create intersecting edges.", "Invalid Polygon", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            polygonNodes.Add(vertexNode);
+
+            // Update preview polygon
+            previewPolygon.Points.Clear();
+            foreach (var n in polygonNodes)
+                previewPolygon.Points.Add(n.Location);
+        }
+
+
         private void CreateBeam(Node startNode, Node endNode)
         {
             beamCount++;
@@ -264,6 +308,106 @@ namespace StructuralPlanner
             UpdateDataGrid();
             UpdateNodeConnectionsDataGrid();
         }
+
+        private void CreateTestPolygon()
+        {
+            // Clear any previous temp nodes or preview
+            tempPolygonNodes.Clear();
+            if (tempPolygonPreview != null)
+                OverlayLayer.Children.Remove(tempPolygonPreview);
+
+            tempPolygonPreview = new Polygon
+            {
+                Stroke = Brushes.Green,
+                StrokeThickness = 2,
+                Fill = new SolidColorBrush(Color.FromArgb(50, 0, 255, 0))
+            };
+            OverlayLayer.Children.Add(tempPolygonPreview);
+
+            MessageBox.Show("Click 3 or 4 distinct nodes to form the polygon. Existing nodes will snap automatically.");
+
+            // Subscribe temporarily to mouse click
+            MouseButtonEventHandler handler = null;
+            handler = (s, e) =>
+            {
+                Point click = e.GetPosition(MemberLayer);
+                Node node = GetNearbyNode(click, currentFloor) ?? CreateNode(click, currentFloor);
+
+                if (!tempPolygonNodes.Contains(node))
+                    tempPolygonNodes.Add(node);
+
+                // Update preview polygon
+                tempPolygonPreview.Points.Clear();
+                foreach (var n in tempPolygonNodes)
+                    tempPolygonPreview.Points.Add(n.Location);
+
+                if (tempPolygonNodes.Count >= 3)
+                {
+                    if (tempPolygonNodes.Count == 4)
+                    {
+                        // Finish polygon automatically
+                        Polygon poly = new Polygon
+                        {
+                            Stroke = Brushes.Green,
+                            StrokeThickness = 2,
+                            Fill = new SolidColorBrush(Color.FromArgb(50, 0, 255, 0))
+                        };
+                        foreach (var n in tempPolygonNodes)
+                            poly.Points.Add(n.Location);
+
+                        MemberLayer.Children.Add(poly);
+
+                        // Cleanup
+                        OverlayLayer.Children.Remove(tempPolygonPreview);
+                        tempPolygonPreview = null;
+                        tempPolygonNodes.Clear();
+
+                        // Unsubscribe from mouse
+                        MemberLayer.MouseLeftButtonDown -= handler;
+                    }
+                }
+            };
+
+            MemberLayer.MouseLeftButtonDown += handler;
+        }
+
+
+        private void StartPolygonMode()
+        {
+            addingPolygon = true;
+            polygonNodes.Clear();
+
+            previewPolygon = new Polygon
+            {
+                Stroke = Brushes.Green,
+                StrokeThickness = 2,
+                Fill = new SolidColorBrush(Color.FromArgb(60, 0, 255, 0)), // translucent green
+            };
+
+            OverlayLayer.Children.Add(previewPolygon);
+            Mouse.OverrideCursor = Cursors.Cross;
+        }
+
+        private void FinishPolygon()
+        {
+            if (polygonNodes.Count >= 3)
+            {
+                previewPolygon.Points.Clear();
+                foreach (var n in polygonNodes)
+                    previewPolygon.Points.Add(n.Location);
+
+                // Optionally add to a Polygon collection for reference later
+                // SavedPolygons.Add(previewPolygon);
+
+                MessageBox.Show($"Polygon created with {polygonNodes.Count} nodes.");
+            }
+
+            addingPolygon = false;
+            polygonNodes.Clear();
+            Mouse.OverrideCursor = null;
+        }
+
+
 
 
 
@@ -443,5 +587,43 @@ namespace StructuralPlanner
 
             NodeConnectionsDataGrid.ItemsSource = data;
         }
+
+        private bool WouldIntersect(Point newPoint)
+        {
+            if (polygonNodes.Count < 2) return false;
+
+            Point lastPoint = polygonNodes[polygonNodes.Count - 1].Location;
+
+            for (int i = 0; i < polygonNodes.Count - 2; i++)
+            {
+                Point a1 = polygonNodes[i].Location;
+                Point a2 = polygonNodes[i + 1].Location;
+
+                if (DoSegmentsIntersect(a1, a2, lastPoint, newPoint))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private bool DoSegmentsIntersect(Point p1, Point p2, Point p3, Point p4)
+        {
+            double d1 = Direction(p3, p4, p1);
+            double d2 = Direction(p3, p4, p2);
+            double d3 = Direction(p1, p2, p3);
+            double d4 = Direction(p1, p2, p4);
+
+            if (((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) &&
+                ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0)))
+                return true;
+
+            return false;
+        }
+
+        private double Direction(Point a, Point b, Point c)
+        {
+            return (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
+        }
+
     }
 }
