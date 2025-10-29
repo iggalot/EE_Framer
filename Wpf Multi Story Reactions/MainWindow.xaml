@@ -62,24 +62,37 @@
             <Separator Margin="10,20,10,10"/>
 
             <TextBlock Text="Member Data" FontWeight="Bold" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
-            <DataGrid x:Name="BeamDataGrid"
-                      AutoGenerateColumns="True"
-                      CanUserAddRows="False"
-                      HeadersVisibility="Column"
-                      Background="White"
-                      Foreground="Black"
-                      Height="150"
-                      Margin="0,5,0,10"/>
+
+            <!-- SCROLLABLE Beam DataGrid -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Height="200">
+                <DataGrid x:Name="BeamDataGrid"
+                          AutoGenerateColumns="True"
+                          CanUserAddRows="False"
+                          HeadersVisibility="Column"
+                          Background="White"
+                          Foreground="Black"
+                          Margin="0,5,0,10"/>
+            </ScrollViewer>
 
             <TextBlock Text="Node Connections" FontWeight="Bold" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
-            <DataGrid x:Name="NodeConnectionsDataGrid"
-                      AutoGenerateColumns="True"
-                      CanUserAddRows="False"
-                      HeadersVisibility="Column"
-                      Background="White"
-                      Foreground="Black"
-                      Height="150"
-                      Margin="0,5,0,10"/>
+
+            <!-- SCROLLABLE Node Connections DataGrid -->
+            <ScrollViewer VerticalScrollBarVisibility="Auto" Height="300">
+                <DataGrid x:Name="NodeConnectionsDataGrid"
+                          AutoGenerateColumns="False"
+                          IsReadOnly="True"
+                          Margin="5"
+                          HeadersVisibility="Column"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Node ID" Binding="{Binding NodeID}" Width="Auto"/>
+                        <DataGridTextColumn Header="Floor" Binding="{Binding Floor}" Width="60" />
+                        <DataGridTextColumn Header="Connected Members" Binding="{Binding ConnectedMembers}" Width="*" />
+                    </DataGrid.Columns>
+                </DataGrid>
+            </ScrollViewer>
+
         </StackPanel>
 
         <!-- ================= DRAWING CANVAS ================= -->

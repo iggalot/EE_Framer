@@ -15,10 +15,23 @@ namespace StructuralPlanner
 
         public class Node
         {
+            private static int _nodeCount = 0;
             public string NodeID { get; set; }
             public Point Location { get; set; }
             public int Floor { get; set; }
+
+            // Keep a list of all connected members
+            public List<StructuralMember> ConnectedMembers { get; } = new List<StructuralMember>();
+
+            public Node()
+            {
+                _nodeCount++;
+                NodeID = $"N{_nodeCount}";
+            }
+
+            public string ConnectedMemberIDs => string.Join(", ", ConnectedMembers.Select(m => m.ID));
         }
+
 
         public class StructuralMember
         {
@@ -161,8 +174,7 @@ namespace StructuralPlanner
 
         private Node CreateNode(Point p, int floor)
         {
-            nodeCount++;
-            var node = new Node { NodeID = $"N{nodeCount}", Location = p, Floor = floor };
+            var node = new Node { Location = p, Floor = floor };
             Nodes.Add(node);
             return node;
         }
@@ -185,6 +197,10 @@ namespace StructuralPlanner
                 var member = new StructuralMember { ID = $"B{beamCount}", Type = MemberType.Beam, StartNode = startNode, EndNode = clickedNode };
                 Members.Add(member);
 
+                // 🔹 Track connection in both nodes
+                startNode.ConnectedMembers.Add(member);
+                clickedNode.ConnectedMembers.Add(member);
+
                 pendingStartPoint = null;
                 addingBeam = false;
                 Mouse.OverrideCursor = null;
@@ -194,6 +210,7 @@ namespace StructuralPlanner
                 UpdateNodeConnectionsDataGrid();
             }
         }
+
 
         private void HandleAddColumn(Point click)
         {
@@ -212,12 +229,17 @@ namespace StructuralPlanner
             var member = new StructuralMember { ID = $"C{columnCount}", Type = MemberType.Column, StartNode = topNode, EndNode = bottomNode };
             Members.Add(member);
 
+            // 🔹 Track connection in both nodes
+            topNode.ConnectedMembers.Add(member);
+            bottomNode.ConnectedMembers.Add(member);
+
             addingColumn = false;
             Mouse.OverrideCursor = null;
             RedrawMembers();
             UpdateDataGrid();
             UpdateNodeConnectionsDataGrid();
         }
+
 
         // ==================== Drawing ====================
         private void DrawGridLines()
@@ -369,7 +391,7 @@ namespace StructuralPlanner
             {
                 NodeID = n.NodeID,
                 Floor = n.Floor,
-                ConnectedMembers = string.Join(", ", Members.Where(m => m.StartNode == n || m.EndNode == n).Select(m => m.ID))
+                ConnectedMembers = n.ConnectedMemberIDs
             }).ToList();
 
             NodeConnectionsDataGrid.ItemsSource = data;
