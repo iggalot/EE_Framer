@@ -194,6 +194,20 @@ namespace StructuralPlanner
 
 
         // ==================== Node Management ====================
+        private List<Node> OrderNodesClockwise(List<Node> nodes)
+        {
+            // Compute centroid
+            double cx = nodes.Average(n => n.Location.X);
+            double cy = nodes.Average(n => n.Location.Y);
+
+            return nodes.OrderBy(n =>
+            {
+                double angle = Math.Atan2(n.Location.Y - cy, n.Location.X - cx);
+                return angle;
+            }).ToList();
+        }
+
+
         private Node GetNearbyNode(Point p, int floor)
         {
             return Nodes.FirstOrDefault(n => n.Floor == floor && Distance(n.Location, p) <= snapTolerance);
@@ -311,7 +325,6 @@ namespace StructuralPlanner
 
         private void CreateTestPolygon()
         {
-            // Clear any previous temp nodes or preview
             tempPolygonNodes.Clear();
             if (tempPolygonPreview != null)
                 OverlayLayer.Children.Remove(tempPolygonPreview);
@@ -326,7 +339,6 @@ namespace StructuralPlanner
 
             MessageBox.Show("Click 3 or 4 distinct nodes to form the polygon. Existing nodes will snap automatically.");
 
-            // Subscribe temporarily to mouse click
             MouseButtonEventHandler handler = null;
             handler = (s, e) =>
             {
@@ -338,21 +350,21 @@ namespace StructuralPlanner
 
                 // Update preview polygon
                 tempPolygonPreview.Points.Clear();
-                foreach (var n in tempPolygonNodes)
+                foreach (var n in OrderNodesClockwise(tempPolygonNodes))
                     tempPolygonPreview.Points.Add(n.Location);
 
                 if (tempPolygonNodes.Count >= 3)
                 {
                     if (tempPolygonNodes.Count == 4)
                     {
-                        // Finish polygon automatically
+                        // Finalize polygon
                         Polygon poly = new Polygon
                         {
                             Stroke = Brushes.Green,
                             StrokeThickness = 2,
                             Fill = new SolidColorBrush(Color.FromArgb(50, 0, 255, 0))
                         };
-                        foreach (var n in tempPolygonNodes)
+                        foreach (var n in OrderNodesClockwise(tempPolygonNodes))
                             poly.Points.Add(n.Location);
 
                         MemberLayer.Children.Add(poly);
@@ -362,7 +374,6 @@ namespace StructuralPlanner
                         tempPolygonPreview = null;
                         tempPolygonNodes.Clear();
 
-                        // Unsubscribe from mouse
                         MemberLayer.MouseLeftButtonDown -= handler;
                     }
                 }
