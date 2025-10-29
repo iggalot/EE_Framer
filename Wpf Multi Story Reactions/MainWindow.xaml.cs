@@ -174,50 +174,71 @@ namespace StructuralPlanner
                 // --- Parallel line handling ---
                 if (currentParallelLineMode != ParallelLineMode.None)
                 {
-                    if (parallelStartPoint == null)
+                    parallelStartPoint = click;
+
+                    Point p1 = parallelStartPoint.Value;
+                    Point p2 = click;
+                    StructuralMember nearestEdge = null;
+
+                    Point? nearestPoint = FindNearestPointOnMember(p1, Members, out nearestEdge);
+                   
+                    if (nearestPoint.HasValue is false) return;
+
+                    p1 = nearestPoint.Value;
+
+                    switch (currentParallelLineMode)
                     {
-                        parallelStartPoint = click;
+                        case ParallelLineMode.Horizontal:
+                            p2.X = nearestPoint.Value.X + 100; break;
+                        case ParallelLineMode.Vertical:
+                            p2.Y = nearestPoint.Value.Y + 100; break;
+                        case ParallelLineMode.EdgePerp:
+                            p2 = nearestPoint.Value;
+                            break;
                     }
-                    else
+
+                    // Reset the polygon color and then Find the first polygon that contains the point and highlight it red
+                    foreach (Polygon p in finalizedPolygons)
                     {
-                        Point p1 = parallelStartPoint.Value;
-                        Point p2 = click;
-                        Point finalEnd = p2;
+                        p.Fill = new SolidColorBrush(Color.FromArgb(100, 0, 255, 0));
+                    }
 
-                        switch (currentParallelLineMode)
-                        {
-                            case ParallelLineMode.Vertical:
-                                finalEnd.X = p1.X; break;
-                            case ParallelLineMode.Horizontal:
-                                finalEnd.Y = p1.Y; break;
-                            case ParallelLineMode.EdgePerp:
-                                StructuralMember nearestEdge = FindNearestMember(p1, Members);
-                                finalEnd = ProjectPerpendicular(p1, p2, nearestEdge);
-                                break;
-                        }
+                    Polygon poly = GetPolygonContainingPoint(click);
+                    if (poly != null)
+                    {
+                        poly.Fill = Brushes.Red;
+                    }
 
+                    if (currentParallelLineMode == ParallelLineMode.EdgePerp)
+                    {
+                        DrawPerpendicularFromClick(p2, nearestEdge);
+                    } else
+                    {
                         Line ln = new Line
                         {
                             X1 = p1.X,
                             Y1 = p1.Y,
-                            X2 = finalEnd.X,
-                            Y2 = finalEnd.Y,
-                            Stroke = Brushes.Purple,
-                            StrokeThickness = 2
+                            X2 = p2.X,
+                            Y2 = p2.Y,
+                            Stroke = Brushes.Blue,
+                            StrokeThickness = 2,
+                            StrokeDashArray = new DoubleCollection { 4, 2 }
                         };
                         MemberLayer.Children.Add(ln);
-
-                        parallelStartPoint = null;
-                        currentParallelLineMode = ParallelLineMode.None;
-
-                        if (tempParallelLine != null)
-                        {
-                            OverlayLayer.Children.Remove(tempParallelLine);
-                            tempParallelLine = null;
-                        }
-
-                        Mouse.OverrideCursor = null;
                     }
+
+
+                    parallelStartPoint = null;
+                    //currentParallelLineMode = ParallelLineMode.None;
+
+                    if (tempParallelLine != null)
+                    {
+                        OverlayLayer.Children.Remove(tempParallelLine);
+                        tempParallelLine = null;
+                    }
+
+                    Mouse.OverrideCursor = null;
+
                     return; // skip other logic
                 }
 
@@ -384,6 +405,26 @@ namespace StructuralPlanner
             var node = new Node { Location = p, Floor = floor };
             Nodes.Add(node);
             return node;
+        }
+
+        private Polygon GetPolygonContainingPoint(Point click)
+        {
+            foreach (var poly in finalizedPolygons)
+            {
+                // Convert the polygon points to a StreamGeometry
+                var geometry = new StreamGeometry();
+                using (var ctx = geometry.Open())
+                {
+                    ctx.BeginFigure(poly.Points[0], true, true); // is filled, is closed
+                    ctx.PolyLineTo(poly.Points.Skip(1).ToList(), true, true);
+                }
+                geometry.Freeze(); // optional for performance
+
+                if (geometry.FillContains(click))
+                    return poly;
+            }
+
+            return null; // No polygon contains the point
         }
 
         private double Distance(Point a, Point b) => Math.Sqrt(Math.Pow(a.X - b.X, 2) + Math.Pow(a.Y - b.Y, 2));
@@ -734,34 +775,36 @@ namespace StructuralPlanner
             }
         }
 
-        private StructuralMember FindNearestMember(Point click, List<StructuralMember> members)
+        private Point? FindNearestPointOnMember(Point click, List<StructuralMember> members, out StructuralMember nearestMember)
         {
+            nearestMember = null;
+
             if (members == null || members.Count == 0)
                 return null;
 
             double minDist = double.MaxValue;
-            StructuralMember nearest = null;
+            Point closestPoint = new Point();
 
             foreach (var m in members)
             {
                 Point a = m.StartNode.Location;
                 Point b = m.EndNode.Location;
 
-                // Project click onto line segment and get nearest point
+                // Project click onto line segment
                 Point projected = ProjectPointOntoSegment(click, a, b);
                 double dist = Distance(click, projected);
 
                 if (dist < minDist)
                 {
                     minDist = dist;
-                    nearest = m;
+                    closestPoint = projected;
+                    nearestMember = m;
                 }
             }
 
-            Debug.WriteLine($"Nearest member: {nearest?.ID}");
-
-            return nearest;
+            return closestPoint;
         }
+
 
         /// <summary>
         /// Returns the closest point on the line segment AB to point P
@@ -795,16 +838,13 @@ namespace StructuralPlanner
         }
 
         // Call this from your ⊥ edge button click or mode
-        private void DrawPerpendicularFromClick(Point click)
+        private void DrawPerpendicularFromClick(Point pt, StructuralMember edge)
         {
-            // Find nearest member based on perpendicular distance
-            var nearest = FindNearestMember(click, Members.Where(m => m.Floor == currentFloor).ToList());
-            if (nearest == null) return;
+            if(edge == null) return;
 
             // Project click onto the member line
-            Point a = nearest.StartNode.Location;
-            Point b = nearest.EndNode.Location;
-            Point projected = ProjectPointOntoSegment(click, a, b);
+            Point a = edge.StartNode.Location;
+            Point b = edge.EndNode.Location;
 
             // Calculate perpendicular direction
             Vector memberVec = b - a;
@@ -813,8 +853,8 @@ namespace StructuralPlanner
 
             // Define perpendicular line length (e.g., 100 pixels)
             double length = 100;
-            Point p1 = projected + perp * (length / 2);
-            Point p2 = projected - perp * (length / 2);
+            Point p1 = pt + perp * (length / 2);
+            Point p2 = pt - perp * (length / 2);
 
             // Draw line
             Line perpLine = new Line
@@ -823,7 +863,7 @@ namespace StructuralPlanner
                 Y1 = p1.Y,
                 X2 = p2.X,
                 Y2 = p2.Y,
-                Stroke = Brushes.Lime,
+                Stroke = Brushes.Blue,
                 StrokeThickness = 2,
                 StrokeDashArray = new DoubleCollection { 4, 2 }
             };
