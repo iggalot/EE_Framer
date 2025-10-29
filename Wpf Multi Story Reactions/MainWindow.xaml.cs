@@ -51,11 +51,19 @@ namespace StructuralPlanner
         private bool addingBeam = false;
         private bool addingColumn = false;
         private bool addingPolygon = false;
+        private bool addingParallelLine = false;
+
         private Point? pendingStartPoint = null;
         private Line tempLine = null;
         private Polygon previewPolygon = null;
         private Ellipse snapCircle = null;
         private Line tempLineToMouse = null;  // For polygon preview line following mouse
+
+        private enum ParallelLineMode { None, EdgePerp, Vertical, Horizontal }
+        private ParallelLineMode currentParallelLineMode = ParallelLineMode.None;
+        private Point? parallelStartPoint = null;   // first click
+        private Line tempParallelLine = null;       // live preview
+
 
 
 
@@ -104,6 +112,13 @@ namespace StructuralPlanner
             MemberLayer.MouseLeftButtonDown += MemberLayer_MouseLeftButtonDown_Polygon;
         }
 
+        private void AddParallelLineButton_Click(object sender, RoutedEventArgs e)
+        {
+            addingParallelLine = true;
+            pendingStartPoint = null;
+            Mouse.OverrideCursor = Cursors.Cross;
+        }
+
         private void ClearButton_Click(object sender, RoutedEventArgs e)
         {
             Members.Clear();
@@ -130,21 +145,25 @@ namespace StructuralPlanner
         // ==================== Polygon Alignment Buttons ====================
         private void BtnEdgePerp_Click(object sender, RoutedEventArgs e)
         {
-            currentLineMode = LineMode.PerpendicularEdge;
-            DrawParallelLinesPreview();
+            currentParallelLineMode = ParallelLineMode.EdgePerp;
+            parallelStartPoint = null;
+            Mouse.OverrideCursor = Cursors.Cross;
         }
 
         private void BtnVertical_Click(object sender, RoutedEventArgs e)
         {
-            currentLineMode = LineMode.Vertical;
-            DrawParallelLinesPreview();
+            currentParallelLineMode = ParallelLineMode.Vertical;
+            parallelStartPoint = null;
+            Mouse.OverrideCursor = Cursors.Cross;
         }
 
         private void BtnHorizontal_Click(object sender, RoutedEventArgs e)
         {
-            currentLineMode = LineMode.Horizontal;
-            DrawParallelLinesPreview();
+            currentParallelLineMode = ParallelLineMode.Horizontal;
+            parallelStartPoint = null;
+            Mouse.OverrideCursor = Cursors.Cross;
         }
+
 
         // ==================== Canvas Events ====================
         private void MemberLayer_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -152,7 +171,60 @@ namespace StructuralPlanner
             Point click = e.GetPosition(MemberLayer);
 
             if (addingBeam) HandleAddBeam(click);
-            else if (addingColumn) HandleAddColumn(click);
+            else if (addingColumn) HandleAddColumn(click); 
+            else if (addingParallelLine)
+            {
+                // --- Parallel line handling ---
+                if (currentParallelLineMode != ParallelLineMode.None)
+                {
+                    if (parallelStartPoint == null)
+                    {
+                        parallelStartPoint = click;
+                    }
+                    else
+                    {
+                        Point p1 = parallelStartPoint.Value;
+                        Point p2 = click;
+                        Point finalEnd = p2;
+
+                        switch (currentParallelLineMode)
+                        {
+                            case ParallelLineMode.Vertical:
+                                finalEnd.X = p1.X; break;
+                            case ParallelLineMode.Horizontal:
+                                finalEnd.Y = p1.Y; break;
+                            case ParallelLineMode.EdgePerp:
+                                StructuralMember nearestEdge = FindNearestMember(p1, Members);
+                                finalEnd = ProjectPerpendicular(p1, p2, nearestEdge);
+                                break;
+                        }
+
+                        Line ln = new Line
+                        {
+                            X1 = p1.X,
+                            Y1 = p1.Y,
+                            X2 = finalEnd.X,
+                            Y2 = finalEnd.Y,
+                            Stroke = Brushes.Purple,
+                            StrokeThickness = 2
+                        };
+                        MemberLayer.Children.Add(ln);
+
+                        parallelStartPoint = null;
+                        currentParallelLineMode = ParallelLineMode.None;
+
+                        if (tempParallelLine != null)
+                        {
+                            OverlayLayer.Children.Remove(tempParallelLine);
+                            tempParallelLine = null;
+                        }
+
+                        Mouse.OverrideCursor = null;
+                    }
+                    return; // skip other logic
+                }
+
+            }
         }
 
         private void MemberLayer_MouseLeftButtonDown_Polygon(object sender, MouseButtonEventArgs e)
@@ -260,6 +332,43 @@ namespace StructuralPlanner
                     OverlayLayer.Children.Add(tempLineToMouse);
                 }
             }
+
+            // --- Parallel line preview ---
+            if (currentParallelLineMode != ParallelLineMode.None && parallelStartPoint != null)
+            {
+                Point p1 = parallelStartPoint.Value;
+                Point previewEnd = mousePos;
+
+                switch (currentParallelLineMode)
+                {
+                    case ParallelLineMode.Vertical:
+                        previewEnd.X = p1.X; break;
+                    case ParallelLineMode.Horizontal:
+                        previewEnd.Y = p1.Y; break;
+                    case ParallelLineMode.EdgePerp:
+                        StructuralMember nearestEdge = FindNearestMember(p1, Members);
+                        previewEnd = ProjectPerpendicular(p1, mousePos, nearestEdge);
+                        break;
+                }
+
+                if (tempParallelLine != null)
+                    OverlayLayer.Children.Remove(tempParallelLine);
+
+                tempParallelLine = new Line
+                {
+                    X1 = p1.X,
+                    Y1 = p1.Y,
+                    X2 = previewEnd.X,
+                    Y2 = previewEnd.Y,
+                    Stroke = Brushes.Purple,
+                    StrokeThickness = 2,
+                    StrokeDashArray = new DoubleCollection { 4, 2 }
+                };
+                OverlayLayer.Children.Add(tempParallelLine);
+            }
+
+
+
         }
 
         private void MainCanvas_MouseWheel(object sender, MouseWheelEventArgs e) { /* Optional zoom */ }
@@ -601,5 +710,25 @@ namespace StructuralPlanner
                 }
             }
         }
+
+        private StructuralMember FindNearestMember(Point p, List<StructuralMember> members)
+        {
+            if (members.Count == 0) return null;
+            return members.OrderBy(m => Distance(p, MidPoint(m.StartNode.Location, m.EndNode.Location))).First();
+        }
+
+        private Point MidPoint(Point a, Point b) => new Point((a.X + b.X) / 2, (a.Y + b.Y) / 2);
+
+        private Point ProjectPerpendicular(Point origin, Point mousePos, StructuralMember edge)
+        {
+            if (edge == null) return mousePos;
+            Vector edgeVec = edge.EndNode.Location - edge.StartNode.Location;
+            edgeVec.Normalize();
+            Vector mouseVec = mousePos - origin;
+            Vector perp = new Vector(-edgeVec.Y, edgeVec.X); // perpendicular
+            double length = Vector.Multiply(mouseVec, perp);
+            return origin + perp * length;
+        }
+
     }
 }

@@ -38,7 +38,7 @@
             <!-- Column controls -->
             <Button x:Name="AddColumnButton" Content="Add Column" Width="100" Margin="5" Click="AddColumnButton_Click"/>
             <Button x:Name="AddPolygonButton" Content="Add Polygon" Width="110" Margin="5" Click="AddPolygonButton_Click"/>
-
+            <Button x:Name="AddParallelLineButton" Content="Add Parallel Line" Width="140" Margin="5" Click="AddParallelLineButton_Click"/>
             <Separator Width="20"/>
 
             <!-- Misc -->
@@ -105,21 +105,30 @@
                 Margin="10"
                 ClipToBounds="True">
             <Grid x:Name="CanvasContainer" Background="White">
-                <StackPanel Orientation="Horizontal" >
-                    <Button x:Name="BtnEdgePerp" Content="⊥ Edge" Width="70" Margin="4" Click="BtnEdgePerp_Click"/>
-                    <Button x:Name="BtnVertical" Content="↕ Vert" Width="70" Margin="4" Click="BtnVertical_Click"/>
-                    <Button x:Name="BtnHorizontal" Content="↔ Horz" Width="70" Margin="4" Click="BtnHorizontal_Click"/>
-                </StackPanel>
+                <!-- Canvas layers -->
                 <Canvas x:Name="GridLayer" IsHitTestVisible="False"/>
                 <Canvas x:Name="MemberLayer"
-                        Background="Transparent"
-                        MouseLeftButtonDown="MemberLayer_MouseLeftButtonDown"
-                        MouseMove="MemberLayer_MouseMove"
-                        MouseWheel="MainCanvas_MouseWheel"/>
+            Background="Transparent"
+            MouseLeftButtonDown="MemberLayer_MouseLeftButtonDown"
+            MouseMove="MemberLayer_MouseMove"
+            MouseWheel="MainCanvas_MouseWheel"/>
                 <Canvas x:Name="OverlayLayer"
-                        Background="Transparent"
-                        IsHitTestVisible="False"/>
+            Background="Transparent"
+            IsHitTestVisible="False"/>
+
+                <!-- Buttons on top -->
+                <StackPanel Orientation="Horizontal"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Top"
+                Background="#66FFFFFF"
+                Margin="4"
+                Panel.ZIndex="10">
+                    <Button x:Name="BtnEdgePerp" Content="⊥ Edge" Width="70" Margin="2" Click="BtnEdgePerp_Click"/>
+                    <Button x:Name="BtnVertical" Content="↕ Vert" Width="70" Margin="2" Click="BtnVertical_Click"/>
+                    <Button x:Name="BtnHorizontal" Content="↔ Horz" Width="70" Margin="2" Click="BtnHorizontal_Click"/>
+                </StackPanel>
             </Grid>
+
         </Border>
     </Grid>
 </Window>
