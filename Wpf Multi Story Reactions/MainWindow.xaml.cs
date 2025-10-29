@@ -1,7 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
+﻿using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -336,35 +333,36 @@ namespace StructuralPlanner
             // --- Parallel line preview ---
             if (currentParallelLineMode != ParallelLineMode.None && parallelStartPoint != null)
             {
-                Point p1 = parallelStartPoint.Value;
-                Point previewEnd = mousePos;
+                DrawParallelLinesPreview();
+                //Point p1 = parallelStartPoint.Value;
+                //Point previewEnd = mousePos;
 
-                switch (currentParallelLineMode)
-                {
-                    case ParallelLineMode.Vertical:
-                        previewEnd.X = p1.X; break;
-                    case ParallelLineMode.Horizontal:
-                        previewEnd.Y = p1.Y; break;
-                    case ParallelLineMode.EdgePerp:
-                        StructuralMember nearestEdge = FindNearestMember(p1, Members);
-                        previewEnd = ProjectPerpendicular(p1, mousePos, nearestEdge);
-                        break;
-                }
+                //switch (currentParallelLineMode)
+                //{
+                //    case ParallelLineMode.Vertical:
+                //        previewEnd.X = p1.X; break;
+                //    case ParallelLineMode.Horizontal:
+                //        previewEnd.Y = p1.Y; break;
+                //    case ParallelLineMode.EdgePerp:
+                //        StructuralMember nearestEdge = FindNearestMember(p1, Members);
+                //        previewEnd = ProjectPerpendicular(p1, mousePos, nearestEdge);
+                //        break;
+                //}
 
-                if (tempParallelLine != null)
-                    OverlayLayer.Children.Remove(tempParallelLine);
+                //if (tempParallelLine != null)
+                //    OverlayLayer.Children.Remove(tempParallelLine);
 
-                tempParallelLine = new Line
-                {
-                    X1 = p1.X,
-                    Y1 = p1.Y,
-                    X2 = previewEnd.X,
-                    Y2 = previewEnd.Y,
-                    Stroke = Brushes.Purple,
-                    StrokeThickness = 2,
-                    StrokeDashArray = new DoubleCollection { 4, 2 }
-                };
-                OverlayLayer.Children.Add(tempParallelLine);
+                //tempParallelLine = new Line
+                //{
+                //    X1 = p1.X,
+                //    Y1 = p1.Y,
+                //    X2 = previewEnd.X,
+                //    Y2 = previewEnd.Y,
+                //    Stroke = Brushes.Purple,
+                //    StrokeThickness = 2,
+                //    StrokeDashArray = new DoubleCollection { 4, 2 }
+                //};
+                //OverlayLayer.Children.Add(tempParallelLine);
             }
 
 
@@ -488,16 +486,10 @@ namespace StructuralPlanner
             // Redraw finalized polygons only for current floor
             foreach (var poly in finalizedPolygons)
             {
-                if (poly.Points.Count == 0)
-                    continue;
-
-                // Determine floor from first node that matches a polygon point
-                var firstPoint = poly.Points[0];
-                var node = Nodes.FirstOrDefault(n => n.Location == firstPoint);
-                if (node != null && node.Floor == currentFloor)
+                bool flowControl = DrawPolygon(poly);
+                if (!flowControl)
                 {
-                    if (!MemberLayer.Children.Contains(poly))
-                        MemberLayer.Children.Add(poly);
+                    continue;
                 }
             }
 
@@ -512,6 +504,23 @@ namespace StructuralPlanner
 
             UpdateDataGrid();
             UpdateNodeConnectionsDataGrid();
+        }
+
+        private bool DrawPolygon(Polygon poly)
+        {
+            if (poly.Points.Count == 0)
+                return false;
+
+            // Determine floor from first node that matches a polygon point
+            var firstPoint = poly.Points[0];
+            var node = Nodes.FirstOrDefault(n => n.Location == firstPoint);
+            if (node != null && node.Floor == currentFloor)
+            {
+                if (!MemberLayer.Children.Contains(poly))
+                    MemberLayer.Children.Add(poly);
+            }
+
+            return true;
         }
 
         private void DrawMember(Canvas cnv, StructuralMember m, double opacity)
@@ -647,10 +656,24 @@ namespace StructuralPlanner
 
         private void CreateTestRoof()
         {
-            Node n1 = CreateNode(new Point(100, 100), currentFloor);
-            Node n2 = CreateNode(new Point(300, 100), currentFloor);
-            Node n3 = CreateNode(new Point(300, 300), currentFloor);
-            Node n4 = CreateNode(new Point(100, 300), currentFloor);
+            // For square roof
+            //Node n1 = CreateNode(new Point(100, 100), currentFloor);
+            //Node n2 = CreateNode(new Point(300, 100), currentFloor);
+            //Node n3 = CreateNode(new Point(300, 300), currentFloor);
+            //Node n4 = CreateNode(new Point(100, 300), currentFloor);
+
+            // For arbitrary roof
+            Node n1 = CreateNode(new Point(50, 50), currentFloor);
+            Node n2 = CreateNode(new Point(300, 400), currentFloor);
+            Node n3 = CreateNode(new Point(480, 175), currentFloor);
+            Node n4 = CreateNode(new Point(220, 25), currentFloor);
+
+            polygonNodes.Add(n1);
+            polygonNodes.Add(n4);
+
+            polygonNodes.Add(n2);
+            polygonNodes.Add(n3);
+            FinishPolygon();
 
             CreateBeam(n1, n2);
             CreateBeam(n2, n3);
@@ -711,11 +734,52 @@ namespace StructuralPlanner
             }
         }
 
-        private StructuralMember FindNearestMember(Point p, List<StructuralMember> members)
+        private StructuralMember FindNearestMember(Point click, List<StructuralMember> members)
         {
-            if (members.Count == 0) return null;
-            return members.OrderBy(m => Distance(p, MidPoint(m.StartNode.Location, m.EndNode.Location))).First();
+            if (members == null || members.Count == 0)
+                return null;
+
+            double minDist = double.MaxValue;
+            StructuralMember nearest = null;
+
+            foreach (var m in members)
+            {
+                Point a = m.StartNode.Location;
+                Point b = m.EndNode.Location;
+
+                // Project click onto line segment and get nearest point
+                Point projected = ProjectPointOntoSegment(click, a, b);
+                double dist = Distance(click, projected);
+
+                if (dist < minDist)
+                {
+                    minDist = dist;
+                    nearest = m;
+                }
+            }
+
+            Debug.WriteLine($"Nearest member: {nearest?.ID}");
+
+            return nearest;
         }
+
+        /// <summary>
+        /// Returns the closest point on the line segment AB to point P
+        /// </summary>
+        private Point ProjectPointOntoSegment(Point p, Point a, Point b)
+        {
+            Vector ap = p - a;
+            Vector ab = b - a;
+
+            double ab2 = ab.X * ab.X + ab.Y * ab.Y;
+            if (ab2 == 0) return a; // a==b
+
+            double t = Vector.Multiply(ap, ab) / ab2;
+            t = Math.Max(0, Math.Min(1, t)); // clamp to [0,1]
+
+            return a + ab * t;
+        }
+
 
         private Point MidPoint(Point a, Point b) => new Point((a.X + b.X) / 2, (a.Y + b.Y) / 2);
 
@@ -729,6 +793,44 @@ namespace StructuralPlanner
             double length = Vector.Multiply(mouseVec, perp);
             return origin + perp * length;
         }
+
+        // Call this from your ⊥ edge button click or mode
+        private void DrawPerpendicularFromClick(Point click)
+        {
+            // Find nearest member based on perpendicular distance
+            var nearest = FindNearestMember(click, Members.Where(m => m.Floor == currentFloor).ToList());
+            if (nearest == null) return;
+
+            // Project click onto the member line
+            Point a = nearest.StartNode.Location;
+            Point b = nearest.EndNode.Location;
+            Point projected = ProjectPointOntoSegment(click, a, b);
+
+            // Calculate perpendicular direction
+            Vector memberVec = b - a;
+            Vector perp = new Vector(-memberVec.Y, memberVec.X); // rotate 90°
+            perp.Normalize();
+
+            // Define perpendicular line length (e.g., 100 pixels)
+            double length = 100;
+            Point p1 = projected + perp * (length / 2);
+            Point p2 = projected - perp * (length / 2);
+
+            // Draw line
+            Line perpLine = new Line
+            {
+                X1 = p1.X,
+                Y1 = p1.Y,
+                X2 = p2.X,
+                Y2 = p2.Y,
+                Stroke = Brushes.Lime,
+                StrokeThickness = 2,
+                StrokeDashArray = new DoubleCollection { 4, 2 }
+            };
+
+            OverlayLayer.Children.Add(perpLine);
+        }
+
 
     }
 }
