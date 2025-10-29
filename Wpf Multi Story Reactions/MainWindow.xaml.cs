@@ -54,8 +54,11 @@ namespace StructuralPlanner
         private Line tempLine = null;
         private Polygon previewPolygon;
 
-        private List<Node> tempPolygonNodes = new();
+        private bool isAddingPolygon = false;
+
+        private List<Node> tempPolygonNodes = new List<Node>();
         private Polygon tempPolygonPreview = null;
+        private Line tempLineToMouse = null;
 
 
         private const double floorHeight = 200;
@@ -129,12 +132,49 @@ namespace StructuralPlanner
 
         }
 
+        private void MemberLayer_MouseLeftButtonDown_Polygon(object sender, MouseButtonEventArgs e)
+        {
+            if (!isAddingPolygon) return;
+
+            Point click = e.GetPosition(MemberLayer);
+            Node node = GetNearbyNode(click, currentFloor) ?? CreateNode(click, currentFloor);
+
+            if (!tempPolygonNodes.Contains(node))
+                tempPolygonNodes.Add(node);
+
+            // Finalize polygon when 4 nodes selected
+            if (tempPolygonNodes.Count == 4)
+            {
+                Polygon finalPolygon = new Polygon
+                {
+                    Stroke = Brushes.Green,
+                    StrokeThickness = 2,
+                    Fill = new SolidColorBrush(Color.FromArgb(50, 0, 255, 0))
+                };
+
+                var sortedNodes = OrderNodesClockwise(tempPolygonNodes);
+                foreach (var n in sortedNodes)
+                    finalPolygon.Points.Add(n.Location);
+
+                MemberLayer.Children.Add(finalPolygon);
+
+                // Reset
+                tempPolygonNodes.Clear();
+                isAddingPolygon = false;
+                OverlayLayer.Children.Clear();
+                tempPolygonPreview = null;
+                tempLineToMouse = null;
+
+                // Unsubscribe handler
+                MemberLayer.MouseLeftButtonDown -= MemberLayer_MouseLeftButtonDown_Polygon;
+            }
+        }
+
+
         private void MemberLayer_MouseMove(object sender, MouseEventArgs e)
         {
             Point mousePos = e.GetPosition(MemberLayer);
             OverlayLayer.Children.Clear();
-
-            if (!addingBeam && !addingColumn) return;
 
             // Snap circle
             Ellipse snapCircle = new Ellipse
@@ -168,12 +208,34 @@ namespace StructuralPlanner
                 OverlayLayer.Children.Add(highlight);
             }
 
-            // Update node connections grid
-            UpdateNodeConnectionsDataGrid();
+            // Draw live polygon preview if in polygon mode
+            if (isAddingPolygon && tempPolygonNodes.Count > 0)
+            {
+                // Draw polygon edges
+                tempPolygonPreview.Points.Clear();
+                foreach (var n in tempPolygonNodes)
+                    tempPolygonPreview.Points.Add(n.Location);
 
-            // Temporary line
-            if (pendingStartPoint != null)
-                DrawTempLine(pendingStartPoint.Value, mousePos);
+                // Draw edge to current mouse position
+                if (tempPolygonNodes.Count > 0)
+                {
+                    tempLineToMouse = new Line
+                    {
+                        X1 = tempPolygonNodes.Last().Location.X,
+                        Y1 = tempPolygonNodes.Last().Location.Y,
+                        X2 = mousePos.X,
+                        Y2 = mousePos.Y,
+                        Stroke = Brushes.Lime,
+                        StrokeThickness = 2,
+                        StrokeDashArray = new DoubleCollection { 4, 2 }
+                    };
+                    OverlayLayer.Children.Add(tempLineToMouse);
+                }
+
+                OverlayLayer.Children.Add(tempPolygonPreview);
+            }
+
+            UpdateNodeConnectionsDataGrid();
         }
 
         private void MainCanvas_MouseWheel(object sender, MouseWheelEventArgs e)
@@ -188,8 +250,10 @@ namespace StructuralPlanner
 
         private void AddPolygonButton_Click(object sender, RoutedEventArgs e)
         {
-            CreateTestPolygon();
+            StartPolygonSelection();
+            MemberLayer.MouseLeftButtonDown += MemberLayer_MouseLeftButtonDown_Polygon;
         }
+
 
 
 
@@ -326,6 +390,72 @@ namespace StructuralPlanner
         private void CreateTestPolygon()
         {
             tempPolygonNodes.Clear();
+
+            // Create temporary preview polygon
+            if (tempPolygonPreview != null)
+                OverlayLayer.Children.Remove(tempPolygonPreview);
+
+            tempPolygonPreview = new Polygon
+            {
+                Stroke = Brushes.Green,
+                StrokeThickness = 2,
+                Fill = new SolidColorBrush(Color.FromArgb(50, 0, 255, 0)) // semi-transparent fill
+            };
+            OverlayLayer.Children.Add(tempPolygonPreview);
+
+            MessageBox.Show("Click 3 or 4 distinct nodes to form the polygon. Nodes will snap automatically.");
+
+            MouseButtonEventHandler handler = null;
+            handler = (s, e) =>
+            {
+                Point click = e.GetPosition(MemberLayer);
+                Node node = GetNearbyNode(click, currentFloor) ?? CreateNode(click, currentFloor);
+
+                // Avoid duplicate nodes
+                if (!tempPolygonNodes.Contains(node))
+                    tempPolygonNodes.Add(node);
+
+                // Update preview polygon with ordered points
+                tempPolygonPreview.Points.Clear();
+                foreach (var n in OrderNodesClockwise(tempPolygonNodes))
+                    tempPolygonPreview.Points.Add(n.Location);
+
+                // Optional: also draw lines from last node to cursor for live feedback
+                DrawPolygonPreviewLineToMouse();
+
+                // Finalize polygon when 4 nodes selected
+                if (tempPolygonNodes.Count == 4)
+                {
+                    Polygon finalPolygon = new Polygon
+                    {
+                        Stroke = Brushes.Green,
+                        StrokeThickness = 2,
+                        Fill = new SolidColorBrush(Color.FromArgb(50, 0, 255, 0))
+                    };
+
+                    foreach (var n in OrderNodesClockwise(tempPolygonNodes))
+                        finalPolygon.Points.Add(n.Location);
+
+                    MemberLayer.Children.Add(finalPolygon);
+
+                    // Cleanup
+                    OverlayLayer.Children.Remove(tempPolygonPreview);
+                    tempPolygonPreview = null;
+                    tempPolygonNodes.Clear();
+
+                    MemberLayer.MouseLeftButtonDown -= handler;
+                }
+            };
+
+            MemberLayer.MouseLeftButtonDown += handler;
+        }
+
+
+        private void StartPolygonSelection()
+        {
+            tempPolygonNodes.Clear();
+            isAddingPolygon = true;
+
             if (tempPolygonPreview != null)
                 OverlayLayer.Children.Remove(tempPolygonPreview);
 
@@ -337,66 +467,7 @@ namespace StructuralPlanner
             };
             OverlayLayer.Children.Add(tempPolygonPreview);
 
-            MessageBox.Show("Click 3 or 4 distinct nodes to form the polygon. Existing nodes will snap automatically.");
-
-            MouseButtonEventHandler handler = null;
-            handler = (s, e) =>
-            {
-                Point click = e.GetPosition(MemberLayer);
-                Node node = GetNearbyNode(click, currentFloor) ?? CreateNode(click, currentFloor);
-
-                if (!tempPolygonNodes.Contains(node))
-                    tempPolygonNodes.Add(node);
-
-                // Update preview polygon
-                tempPolygonPreview.Points.Clear();
-                foreach (var n in OrderNodesClockwise(tempPolygonNodes))
-                    tempPolygonPreview.Points.Add(n.Location);
-
-                if (tempPolygonNodes.Count >= 3)
-                {
-                    if (tempPolygonNodes.Count == 4)
-                    {
-                        // Finalize polygon
-                        Polygon poly = new Polygon
-                        {
-                            Stroke = Brushes.Green,
-                            StrokeThickness = 2,
-                            Fill = new SolidColorBrush(Color.FromArgb(50, 0, 255, 0))
-                        };
-                        foreach (var n in OrderNodesClockwise(tempPolygonNodes))
-                            poly.Points.Add(n.Location);
-
-                        MemberLayer.Children.Add(poly);
-
-                        // Cleanup
-                        OverlayLayer.Children.Remove(tempPolygonPreview);
-                        tempPolygonPreview = null;
-                        tempPolygonNodes.Clear();
-
-                        MemberLayer.MouseLeftButtonDown -= handler;
-                    }
-                }
-            };
-
-            MemberLayer.MouseLeftButtonDown += handler;
-        }
-
-
-        private void StartPolygonMode()
-        {
-            addingPolygon = true;
-            polygonNodes.Clear();
-
-            previewPolygon = new Polygon
-            {
-                Stroke = Brushes.Green,
-                StrokeThickness = 2,
-                Fill = new SolidColorBrush(Color.FromArgb(60, 0, 255, 0)), // translucent green
-            };
-
-            OverlayLayer.Children.Add(previewPolygon);
-            Mouse.OverrideCursor = Cursors.Cross;
+            MessageBox.Show("Click 3 or 4 distinct nodes to form the polygon. Nodes will snap automatically.");
         }
 
         private void FinishPolygon()
@@ -489,6 +560,30 @@ namespace StructuralPlanner
                 StrokeDashArray = new DoubleCollection { 4, 2 }
             };
             OverlayLayer.Children.Add(tempLine);
+        }
+
+        private void DrawPolygonPreviewLineToMouse()
+        {
+            if (tempLineToMouse != null)
+                OverlayLayer.Children.Remove(tempLineToMouse);
+
+            if (tempPolygonNodes.Count == 0) return;
+
+            Point last = tempPolygonNodes.Last().Location;
+            Point mouse = Mouse.GetPosition(MemberLayer);
+
+            tempLineToMouse = new Line
+            {
+                X1 = last.X,
+                Y1 = last.Y,
+                X2 = mouse.X,
+                Y2 = mouse.Y,
+                Stroke = Brushes.Lime,
+                StrokeThickness = 2,
+                StrokeDashArray = new DoubleCollection { 4, 2 }
+            };
+
+            OverlayLayer.Children.Add(tempLineToMouse);
         }
 
         private void DrawMember(Canvas cnv, StructuralMember m, double opacity)
