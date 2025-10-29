@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -52,9 +53,9 @@ namespace StructuralPlanner
         private bool addingPolygon = false;
         private Point? pendingStartPoint = null;
         private Line tempLine = null;
-        private Polygon previewPolygon;
+        private Polyline previewPolyline = null;
+        private Polygon previewPolygon = null;
 
-        private bool isAddingPolygon = false;
 
         private List<Node> tempPolygonNodes = new List<Node>();
         private Polygon tempPolygonPreview = null;
@@ -126,15 +127,58 @@ namespace StructuralPlanner
             else if (addingColumn) HandleAddColumn(click);
             else if (addingPolygon)
             {
-                HandleAddPolygon(e.GetPosition(MemberLayer));
+                Node clickedNode = GetNearbyNode(click, currentFloor) ?? CreateNode(click, currentFloor);
+
+                // Prevent adding more than 4 nodes
+                if (polygonNodes.Count >= 4)
+                    return;
+
+                polygonNodes.Add(clickedNode);
+
+                UpdatePolygonPreview();
+
+                // Check if selection is complete
+                if (polygonNodes.Count == 4)
+                {
+                    if (!CanFormPolygon(polygonNodes))
+                    {
+                        MessageBox.Show("Invalid polygon selection: must have at least 3 distinct nodes and at most one collapsed edge.");
+                        polygonNodes.Clear();
+                        previewPolygon.Points.Clear();
+                        return;
+                    }
+
+                    // Sort clockwise
+                    var sorted = OrderNodesClockwise(polygonNodes);
+
+                    // Draw final polygon
+                    Polygon poly = new Polygon
+                    {
+                        Stroke = Brushes.Green,
+                        StrokeThickness = 2,
+                        Fill = new SolidColorBrush(Color.FromArgb(100, 0, 255, 0))
+                    };
+                    foreach (var n in sorted)
+                        poly.Points.Add(n.Location);
+
+                    OverlayLayer.Children.Add(poly);
+
+                    // Reset state
+                    polygonNodes.Clear();
+                    previewPolygon.Points.Clear();
+                    addingPolygon = false;
+                    Mouse.OverrideCursor = null;
+                }
+
                 return;
             }
+
 
         }
 
         private void MemberLayer_MouseLeftButtonDown_Polygon(object sender, MouseButtonEventArgs e)
         {
-            if (!isAddingPolygon) return;
+            if (!addingPolygon) return;
 
             Point click = e.GetPosition(MemberLayer);
             Node node = GetNearbyNode(click, currentFloor) ?? CreateNode(click, currentFloor);
@@ -160,7 +204,7 @@ namespace StructuralPlanner
 
                 // Reset
                 tempPolygonNodes.Clear();
-                isAddingPolygon = false;
+                addingPolygon = false;
                 OverlayLayer.Children.Clear();
                 tempPolygonPreview = null;
                 tempLineToMouse = null;
@@ -170,13 +214,16 @@ namespace StructuralPlanner
             }
         }
 
-
         private void MemberLayer_MouseMove(object sender, MouseEventArgs e)
         {
             Point mousePos = e.GetPosition(MemberLayer);
-            OverlayLayer.Children.Clear();
 
-            // Snap circle
+            // --- Keep persistent preview polygon and snap/highlight circles separate ---
+            // Remove only temporary snap/highlight circles
+            var tempHighlights = OverlayLayer.Children.OfType<Ellipse>().ToList();
+            foreach (var h in tempHighlights) OverlayLayer.Children.Remove(h);
+
+            // --- Snap circle ---
             Ellipse snapCircle = new Ellipse
             {
                 Width = snapTolerance * 2,
@@ -188,7 +235,7 @@ namespace StructuralPlanner
             Canvas.SetTop(snapCircle, mousePos.Y - snapTolerance);
             OverlayLayer.Children.Add(snapCircle);
 
-            // Highlight closest node
+            // --- Highlight closest node ---
             Node closestNode = Nodes
                 .Where(n => n.Floor == currentFloor)
                 .OrderBy(n => Distance(mousePos, n.Location))
@@ -208,35 +255,65 @@ namespace StructuralPlanner
                 OverlayLayer.Children.Add(highlight);
             }
 
-            // Draw live polygon preview if in polygon mode
-            if (isAddingPolygon && tempPolygonNodes.Count > 0)
+            // --- Polygon preview for node selection ---
+            Debug.WriteLine("\nAdding polygon: " + addingPolygon + ", nodes: " + polygonNodes.Count);
+            if (addingPolygon && polygonNodes.Count > 0)
             {
-                // Draw polygon edges
-                tempPolygonPreview.Points.Clear();
-                foreach (var n in tempPolygonNodes)
-                    tempPolygonPreview.Points.Add(n.Location);
-
-                // Draw edge to current mouse position
-                if (tempPolygonNodes.Count > 0)
+                if (previewPolygon == null)
                 {
-                    tempLineToMouse = new Line
+                    previewPolygon = new Polygon
                     {
-                        X1 = tempPolygonNodes.Last().Location.X,
-                        Y1 = tempPolygonNodes.Last().Location.Y,
-                        X2 = mousePos.X,
-                        Y2 = mousePos.Y,
-                        Stroke = Brushes.Lime,
+                        Stroke = Brushes.Green,
                         StrokeThickness = 2,
-                        StrokeDashArray = new DoubleCollection { 4, 2 }
+                        StrokeDashArray = new DoubleCollection { 4, 2 },
+                        Fill = new SolidColorBrush(Color.FromArgb(50, 0, 255, 0))
                     };
-                    OverlayLayer.Children.Add(tempLineToMouse);
+                    OverlayLayer.Children.Add(previewPolygon);
                 }
 
-                OverlayLayer.Children.Add(tempPolygonPreview);
+                // Clear points and rebuild preview polygon
+                previewPolygon.Points.Clear();
+
+                // Add selected nodes
+                foreach (var n in polygonNodes)
+                    previewPolygon.Points.Add(n.Location);
+
+                // Add preview point for the edge currently being selected
+                if (polygonNodes.Count < 4)
+                {
+                    Point nextPoint = (closestNode != null && Distance(mousePos, closestNode.Location) <= snapTolerance)
+                        ? closestNode.Location
+                        : mousePos;
+
+                    previewPolygon.Points.Add(nextPoint);
+
+                    // If 2 nodes selected, draw connecting line between them + preview line
+                    if (polygonNodes.Count == 1)
+                    {
+                        previewPolygon.Points.Add(polygonNodes[0].Location); // Line back to first for visual cue
+                    }
+                    else if (polygonNodes.Count == 2)
+                    {
+                        // Line between 2 nodes + preview to mouse
+                        previewPolygon.Points.Add(polygonNodes[0].Location);
+                    }
+                    else if (polygonNodes.Count == 3)
+                    {
+                        // Shaded triangle preview
+                        // previewPolygon already has 3 points + mouse position
+                    }
+                }
             }
 
+            // --- Update node connections grid ---
             UpdateNodeConnectionsDataGrid();
+
+            // --- Temporary line for beam/column ---
+            if ((addingBeam || addingColumn) && pendingStartPoint != null)
+                DrawTempLine(pendingStartPoint.Value, mousePos);
         }
+
+
 
         private void MainCanvas_MouseWheel(object sender, MouseWheelEventArgs e)
         {
@@ -260,16 +337,17 @@ namespace StructuralPlanner
         // ==================== Node Management ====================
         private List<Node> OrderNodesClockwise(List<Node> nodes)
         {
-            // Compute centroid
-            double cx = nodes.Average(n => n.Location.X);
-            double cy = nodes.Average(n => n.Location.Y);
+            var center = new Point(
+                nodes.Average(n => n.Location.X),
+                nodes.Average(n => n.Location.Y));
 
             return nodes.OrderBy(n =>
             {
-                double angle = Math.Atan2(n.Location.Y - cy, n.Location.X - cx);
+                double angle = Math.Atan2(n.Location.Y - center.Y, n.Location.X - center.X);
                 return angle;
             }).ToList();
         }
+
 
 
         private Node GetNearbyNode(Point p, int floor)
@@ -454,7 +532,7 @@ namespace StructuralPlanner
         private void StartPolygonSelection()
         {
             tempPolygonNodes.Clear();
-            isAddingPolygon = true;
+            addingPolygon = true;
 
             if (tempPolygonPreview != null)
                 OverlayLayer.Children.Remove(tempPolygonPreview);
@@ -730,6 +808,43 @@ namespace StructuralPlanner
         {
             return (b.X - a.X) * (c.Y - a.Y) - (b.Y - a.Y) * (c.X - a.X);
         }
+
+        private bool CanFormPolygon(List<Node> nodes)
+        {
+            var uniquePoints = nodes
+                .GroupBy(n => new { n.Location.X, n.Location.Y })
+                .Select(g => g.First())
+                .ToList();
+
+            int duplicateCount = nodes.Count - uniquePoints.Count;
+
+            // Only allow 0 or 1 collapsed edge
+            if (duplicateCount > 1)
+                return false;
+
+            // Minimum 3 distinct points
+            if (uniquePoints.Count < 3)
+                return false;
+
+            return true;
+        }
+
+
+        private void UpdatePolygonPreview()
+        {
+            if (previewPolygon == null)
+                return;
+
+            previewPolygon.Points.Clear();
+            foreach (var n in polygonNodes)
+                previewPolygon.Points.Add(n.Location);
+
+            // Optional: close preview if at least 2 points
+            if (polygonNodes.Count >= 2)
+                previewPolygon.Points.Add(polygonNodes[0].Location);
+        }
+
+
 
     }
 }
