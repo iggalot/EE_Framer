@@ -871,6 +871,54 @@ namespace StructuralPlanner
             OverlayLayer.Children.Add(perpLine);
         }
 
+        private List<(Point Start, Point End)> GetPolygonEdges(Polygon polygon)
+        {
+            var edges = new List<(Point Start, Point End)>();
+            var pts = polygon.Points;
 
+            if (pts.Count < 2)
+                return edges;
+
+            for (int i = 0; i < pts.Count; i++)
+            {
+                Point start = pts[i];
+                Point end = (i == pts.Count - 1) ? pts[0] : pts[i + 1]; // wrap around
+                edges.Add((start, end));
+            }
+
+            return edges;
+        }
+
+        private bool EdgeHasMember(Point a, Point b, List<StructuralMember> members, double tolerance = 0.5)
+        {
+            foreach (var m in members)
+            {
+                Point mA = m.StartNode.Location;
+                Point mB = m.EndNode.Location;
+
+                // Check both directions
+                bool match =
+                    (Distance(a, mA) < tolerance && Distance(b, mB) < tolerance) ||
+                    (Distance(a, mB) < tolerance && Distance(b, mA) < tolerance);
+
+                if (match)
+                    return true;
+            }
+
+            return false;
+        }
+
+        private void CheckPolygonEdgesForMembers(Polygon polygon)
+        {
+            var edges = GetPolygonEdges(polygon);
+
+            foreach (var edge in edges)
+            {
+                var floorMembers = Members.Where(m => m.Floor == currentFloor).ToList();
+                bool hasMember = EdgeHasMember(edge.Start, edge.End, floorMembers);
+
+                Debug.WriteLine($"Edge {edge.Start} → {edge.End} has member: {hasMember}");
+            }
+        }
     }
 }
