@@ -16,6 +16,7 @@ namespace StructuralPlanner
         private List<Node> Nodes = new List<Node>();
         private List<StructuralMember> Members = new List<StructuralMember>();
         private List<Node> polygonNodes = new List<Node>();
+        private List<Node> tempNodes = new List<Node>();
         private List<Polygon> finalizedPolygons = new List<Polygon>();
 
         private int currentFloor = 0;
@@ -172,7 +173,7 @@ namespace StructuralPlanner
         #endregion
 
         // ==================== Canvas Events ====================
-        #region Canvas Events
+        #region Window Events
         // ==================== Canvas Events ====================
         private void MemberLayer_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
         {
@@ -278,28 +279,47 @@ namespace StructuralPlanner
         }
 
         private void MainCanvas_MouseWheel(object sender, MouseWheelEventArgs e) { /* Optional zoom */ }
+
+        private void Window_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape)
+            {
+                ResetUI();
+                e.Handled = true; // optional — prevents event bubbling
+            }
+        }
+
         #endregion
 
+        #region UI Update functions
+        private void UpdateDataGrid()
+        {
+            var tableData = Members.Select(m => new
+            {
+                ID = m.ID,
+                Type = m.Type.ToString(),
+                StartX = Math.Round(m.StartNode.Location.X, 1),
+                StartY = Math.Round(m.StartNode.Location.Y, 1),
+                EndX = Math.Round(m.EndNode.Location.X, 1),
+                EndY = Math.Round(m.EndNode.Location.Y, 1),
+                Floor = m.Floor
+            }).ToList();
 
+            BeamDataGrid.ItemsSource = tableData;
+        }
 
+        private void UpdateNodeConnectionsDataGrid()
+        {
+            var data = Nodes.Select(n => new
+            {
+                NodeID = n.NodeID,
+                Floor = n.Floor,
+                ConnectedMembers = n.ConnectedMemberIDs
+            }).ToList();
 
-        //private void UpdatePolygonPreview()
-        //{
-        //    if (previewPolygon == null) return;
-
-        //    previewPolygon.Points.Clear();
-        //    foreach (var n in polygonNodes) previewPolygon.Points.Add(n.Location);
-        //    if (polygonNodes.Count >= 2)
-        //        previewPolygon.Points.Add(polygonNodes[0].Location);
-        //}
-
-
-
-
-
-
-
-
+            NodeConnectionsDataGrid.ItemsSource = data;
+        }
+        #endregion
 
 
 
@@ -457,33 +477,7 @@ namespace StructuralPlanner
             }
         }
 
-        private void UpdateDataGrid()
-        {
-            var tableData = Members.Select(m => new
-            {
-                ID = m.ID,
-                Type = m.Type.ToString(),
-                StartX = Math.Round(m.StartNode.Location.X, 1),
-                StartY = Math.Round(m.StartNode.Location.Y, 1),
-                EndX = Math.Round(m.EndNode.Location.X, 1),
-                EndY = Math.Round(m.EndNode.Location.Y, 1),
-                Floor = m.Floor
-            }).ToList();
 
-            BeamDataGrid.ItemsSource = tableData;
-        }
-
-        private void UpdateNodeConnectionsDataGrid()
-        {
-            var data = Nodes.Select(n => new
-            {
-                NodeID = n.NodeID,
-                Floor = n.Floor,
-                ConnectedMembers = n.ConnectedMemberIDs
-            }).ToList();
-
-            NodeConnectionsDataGrid.ItemsSource = data;
-        }
 
 
 
@@ -518,7 +512,6 @@ namespace StructuralPlanner
         private Node CreateNode(Point p, int floor)
         {
             var node = new Node(p, floor);
-            Nodes.Add(node);
             return node;
         }
 
@@ -527,6 +520,16 @@ namespace StructuralPlanner
             int beamCount = Members.Count(m => m.Type == MemberType.Beam) + 1;
             var member = new StructuralMember($"B{beamCount}", MemberType.Beam, startNode, endNode);
             Members.Add(member);
+
+            if (!Nodes.Contains(startNode))
+            {
+                Nodes.Add(startNode);
+            }
+            if (!Nodes.Contains(endNode))
+            {
+                Nodes.Add(endNode);
+            }
+
 
             startNode.ConnectedMembers.Add(member);
             endNode.ConnectedMembers.Add(member);
@@ -537,6 +540,14 @@ namespace StructuralPlanner
             int colCount = Members.Count(m => m.Type == MemberType.Column) + 1;
             var member = new StructuralMember($"C{colCount}", MemberType.Column, startNode, endNode);
             Members.Add(member);
+            if (!Nodes.Contains(startNode))
+            {
+                Nodes.Add(startNode);
+            }
+            if (!Nodes.Contains(endNode))
+            {
+                Nodes.Add(endNode);
+            }
 
             startNode.ConnectedMembers.Add(member);
             endNode.ConnectedMembers.Add(member);
@@ -545,6 +556,14 @@ namespace StructuralPlanner
         private void CreatePolygon(Polygon finalPolygon)
         {
             finalizedPolygons.Add(finalPolygon);
+
+            foreach (var n in polygonNodes)
+            {
+                if (!Nodes.Contains(n))
+                {
+                    Nodes.Add(n);
+                }
+            }
         }
     }
 }

@@ -7,6 +7,7 @@ namespace StructuralPlanner.Services
 {
     public static class MemberLayoutService
     {
+
         /// <summary>
         /// Create horizontal rafters
         /// </summary>

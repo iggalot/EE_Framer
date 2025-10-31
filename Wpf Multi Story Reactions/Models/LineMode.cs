@@ -6,13 +6,4 @@
         Vertical, 
         Horizontal 
     }
-
-    public enum ParallelLineMode 
-    { 
-        None, 
-        EdgePerp, 
-        Vertical, 
-        Horizontal 
-    }
-
 }

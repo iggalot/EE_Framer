@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Structural Planner" Height="900" Width="1400"
         WindowStartupLocation="CenterScreen"
+        KeyDown="Window_KeyDown"
         Background="#FF2B2B2B">
 
     <Grid>

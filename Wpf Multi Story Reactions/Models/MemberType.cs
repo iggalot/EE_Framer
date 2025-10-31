@@ -4,8 +4,10 @@
     {
         Beam,
         Column,
+        Rafter,
+        Joist,
+        Purlin,
+        Wall,
         Brace,
-        Edge,
-        Other
     }
 }
