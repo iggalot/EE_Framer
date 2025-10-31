@@ -23,27 +23,27 @@
                     VerticalAlignment="Top">
 
             <!-- Floor control buttons -->
-            <Button x:Name="Floor1Button" Content="Floor 1" Width="90" Margin="5" Click="Floor1Button_Click"/>
-            <Button x:Name="Floor2Button" Content="Floor 2" Width="90" Margin="5" Click="Floor2Button_Click"/>
-            <Button x:Name="Floor3Button" Content="Roof" Width="90" Margin="5" Click="RoofButton_Click"/>
+            <Button x:Name="btnFloor1Button" Content="Floor 1" Width="90" Margin="5" Click="btnFloor1Button_Click"/>
+            <Button x:Name="btnFloor2Button" Content="Floor 2" Width="90" Margin="5" Click="btnFloor2Button_Click"/>
+            <Button x:Name="btnFloor3Button" Content="Roof" Width="90" Margin="5" Click="btnRoofButton_Click"/>
 
             <Separator Width="20"/>
 
             <!-- Beam controls -->
-            <Button x:Name="AddBeamButton" Content="Add Beam" Width="100" Margin="5" Click="AddBeamButton_Click"/>
-            <Button x:Name="ComputeReactionsButton" Content="Compute Reactions" Width="140" Margin="5" Click="ComputeReactionsButton_Click"/>
+            <Button x:Name="btnAddBeamButton" Content="Add Beam" Width="100" Margin="5" Click="btnAddBeamButton_Click"/>
+            <Button x:Name="btnComputeReactionsButton" Content="Compute Reactions" Width="140" Margin="5" Click="btnComputeReactionsButton_Click"/>
 
             <Separator Width="20"/>
 
             <!-- Column controls -->
-            <Button x:Name="AddColumnButton" Content="Add Column" Width="100" Margin="5" Click="AddColumnButton_Click"/>
-            <Button x:Name="AddPolygonButton" Content="Add Polygon" Width="110" Margin="5" Click="AddPolygonButton_Click"/>
-            <Button x:Name="AddParallelLineButton" Content="Add Parallel Line" Width="140" Margin="5" Click="AddParallelLineButton_Click"/>
+            <Button x:Name="btnAddColumnButton" Content="Add Column" Width="100" Margin="5" Click="btnAddColumnButton_Click"/>
+            <Button x:Name="btnAddPolygonButton" Content="Add Polygon" Width="110" Margin="5" Click="btnAddPolygonButton_Click"/>
+            <Button x:Name="btnAddParallelLineButton" Content="Add Parallel Line" Width="140" Margin="5" Click="btnAddParallelLineButton_Click"/>
             <Separator Width="20"/>
 
             <!-- Misc -->
-            <Button x:Name="ClearButton" Content="Clear All" Width="100" Margin="5" Click="ClearButton_Click"/>
-            <Button x:Name="CreateRoofButton" Content="Create Test Roof" Width="130" Margin="5" Click="CreateRoofButton_Click"/>
+            <Button x:Name="btnClearButton" Content="Clear All" Width="100" Margin="5" Click="btnClearButton_Click"/>
+            <Button x:Name="btnCreateRoofButton" Content="Create Test Roof" Width="130" Margin="5" Click="btnCreateRoofButton_Click"/>
 
         </StackPanel>
 
@@ -118,14 +118,16 @@
 
                 <!-- Buttons on top -->
                 <StackPanel Orientation="Horizontal"
+                            x:Name="spParallelLinesButtons"
+                            Visibility="Collapsed"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Top"
                 Background="#66FFFFFF"
                 Margin="4"
                 Panel.ZIndex="10">
-                    <Button x:Name="BtnEdgePerp" Content="⊥ Edge" Width="70" Margin="2" Click="BtnEdgePerp_Click"/>
-                    <Button x:Name="BtnVertical" Content="↕ Vert" Width="70" Margin="2" Click="BtnVertical_Click"/>
-                    <Button x:Name="BtnHorizontal" Content="↔ Horz" Width="70" Margin="2" Click="BtnHorizontal_Click"/>
+                    <Button x:Name="btnEdgePerp" Content="⊥ Edge" Width="70" Margin="2" Click="btnEdgePerp_Click"/>
+                    <Button x:Name="btnVertical" Content="↕ Vert" Width="70" Margin="2" Click="btnVertical_Click"/>
+                    <Button x:Name="btnHorizontal" Content="↔ Horz" Width="70" Margin="2" Click="btnHorizontal_Click"/>
                 </StackPanel>
             </Grid>
 
