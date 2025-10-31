@@ -1,9 +1,7 @@
 ﻿using StructuralPlanner.Models;
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Media.Media3D;
 using System.Windows.Shapes;
 
 namespace StructuralPlanner.Services
@@ -85,5 +83,101 @@ namespace StructuralPlanner.Services
             var center = new Point(nodes.Average(n => n.Location.X), nodes.Average(n => n.Location.Y));
             return nodes.OrderBy(n => Math.Atan2(n.Location.Y - center.Y, n.Location.X - center.X)).ToList();
         }
+
+        public static List<(Point3D Start, Point3D End)> TrimLinesToPolygon(List<(Point3D Start, Point3D End)> lines, Polygon polygon)
+        {
+            List<(Point3D Start, Point3D End)> trimmed = new List<(Point3D Start, Point3D End)>();
+
+            // Iterate each line
+            foreach (var line in lines)
+            {
+                List<Point3D> intersections = new List<Point3D>();
+                Point3D start = line.Start;
+                Point3D end = line.End;
+
+                // Iterate each polygon edge
+                for (int i = 0; i < polygon.Points.Count; i++)
+                {
+                    Point p1 = polygon.Points[i];
+                    Point p2 = polygon.Points[(i + 1) % polygon.Points.Count];
+
+                    if (LineSegmentIntersection(start.ToPoint(), end.ToPoint(), p1, p2, out Point inter, true))
+                    {
+                        // Add intersection
+                        if (inter != null)
+                        {
+                            intersections.Add(inter.ToPoint3D());
+                        }
+                    }
+                }
+
+                if(intersections.First() != intersections.Last())
+                {
+                    trimmed.Add((intersections.First(), intersections.Last()));
+                } else
+                {
+                    trimmed.Add(line);
+                }
+            }
+            return trimmed;
+        }
+        // Compute distance along line from start to projection of point
+        private static double DistanceAlongLine(Point lineStart, Point lineEnd, Point p)
+        {
+            double dx = lineEnd.X - lineStart.X;
+            double dy = lineEnd.Y - lineStart.Y;
+            double len2 = dx * dx + dy * dy;
+            if (len2 < 1e-10) return 0;
+            double t = ((p.X - lineStart.X) * dx + (p.Y - lineStart.Y) * dy) / len2;
+            return t;
+        }
+
+        /// <summary>
+        /// Finds the intersection of two 2D line segments.
+        /// </summary>
+        /// <param name="p1">Start of first segment</param>
+        /// <param name="p2">End of first segment</param>
+        /// <param name="q1">Start of second segment</param>
+        /// <param name="q2">End of second segment</param>
+        /// <param name="intersection">Output intersection point</param>
+        /// <param name="requireOnSegments">If true, intersection must lie on both segments. If false, intersection can be anywhere along the infinite lines.</param>
+        /// <returns>True if intersection exists (per the mode), false otherwise</returns>
+        public static bool LineSegmentIntersection(Point p1, Point p2, Point q1, Point q2, out Point intersection, bool requireOnSegments = true)
+        {
+            intersection = new Point();
+
+            double dx1 = p2.X - p1.X;
+            double dy1 = p2.Y - p1.Y;
+            double dx2 = q2.X - q1.X;
+            double dy2 = q2.Y - q1.Y;
+
+            double denom = dx1 * dy2 - dy1 * dx2;
+
+            const double EPS = 1e-8; // small tolerance
+
+            if (Math.Abs(denom) < EPS)
+            {
+                // Lines are parallel or coincident
+                return false;
+            }
+
+            double dx = q1.X - p1.X;
+            double dy = q1.Y - p1.Y;
+
+            double t = (dx * dy2 - dy * dx2) / denom;
+            double u = (dx * dy1 - dy * dx1) / denom;
+
+            intersection.X = p1.X + t * dx1;
+            intersection.Y = p1.Y + t * dy1;
+
+            if (requireOnSegments)
+            {
+                if (t < -EPS || t > 1 + EPS || u < -EPS || u > 1 + EPS)
+                    return false; // Intersection is not on both segments
+            }
+
+            return true;
+        }
+
     }
 }

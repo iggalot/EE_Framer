@@ -1,11 +1,11 @@
 ﻿using StructuralPlanner.Managers;
 using StructuralPlanner.Models;
 using StructuralPlanner.Services;
-using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Media3D;
 using System.Windows.Shapes;
 
 namespace StructuralPlanner
@@ -168,20 +168,9 @@ namespace StructuralPlanner
 
                     Point? nearestPoint = MemberDetectionService.FindNearestPointOnMember(p1, Members, out nearestEdge);
 
-                    if (nearestPoint.HasValue is false) return;
+                    if (nearestPoint.HasValue is false || nearestEdge is null) return;
 
                     p1 = nearestPoint.Value;
-
-                    switch (currentParallelLineMode)
-                    {
-                        case ParallelLineMode.Horizontal:
-                            p2.X = nearestPoint.Value.X + 100; break;
-                        case ParallelLineMode.Vertical:
-                            p2.Y = nearestPoint.Value.Y + 100; break;
-                        case ParallelLineMode.EdgePerp:
-                            p2 = nearestPoint.Value;
-                            break;
-                    }
 
                     // Reset the polygon color and then Find the first polygon that contains the point and highlight it red
                     foreach (Polygon p in finalizedPolygons)
@@ -195,34 +184,70 @@ namespace StructuralPlanner
                         poly.Fill = Brushes.Red;
                     }
 
-                    if (currentParallelLineMode == ParallelLineMode.EdgePerp)
+                    List<(Point3D start, Point3D end)> parallelLines = new List<(Point3D start, Point3D end)>();
+
+                    switch (currentParallelLineMode)
                     {
-                        drawingService.DrawPerpendicularFromClick(MemberLayer, p2, nearestEdge);
+                        case ParallelLineMode.Horizontal:
+                            p2.X = nearestPoint.Value.X + 100;
+                            parallelLines = MemberLayoutService.CreateHorizontalRafters(poly, 16);
+                            break;
+                        case ParallelLineMode.Vertical:
+                            p2.Y = nearestPoint.Value.Y + 100; 
+                            parallelLines = MemberLayoutService.CreateVerticalRafters(poly, 16);
+                            break;
+                        case ParallelLineMode.EdgePerp:
+                            p2 = nearestPoint.Value;
+                            Point3D start = new Point3D(nearestEdge.StartNode.Location.X, nearestEdge.StartNode.Location.Y, 0);
+                            Point3D end = new Point3D(nearestEdge.EndNode.Location.X, nearestEdge.EndNode.Location.Y, 0);
+                            parallelLines = MemberLayoutService.CreatePerpendicularRafters(poly, start, end, 16);
+                            break;
                     }
-                    else
+
+                    // Trim or extend the rafters to the polygon edge
+
+
+                    // Draw the rafter lines
+                    if (parallelLines != null)
                     {
-                        Line ln = new Line
+                        foreach (var line in parallelLines)
                         {
-                            X1 = p1.X,
-                            Y1 = p1.Y,
-                            X2 = p2.X,
-                            Y2 = p2.Y,
-                            Stroke = Brushes.Blue,
-                            StrokeThickness = 2,
-                            StrokeDashArray = new DoubleCollection { 4, 2 }
-                        };
-                        MemberLayer.Children.Add(ln);
+                            Line ln = new Line
+                            {
+                                X1 = line.start.X,
+                                Y1 = line.start.Y,
+                                X2 = line.end.X,
+                                Y2 = line.end.Y,
+                                Stroke = Brushes.Blue,
+                                StrokeThickness = 1,
+                                //StrokeDashArray = new DoubleCollection { 4, 2 }
+                            };
+                            //tempParallelLine = ln;
+                            MemberLayer.Children.Add(ln);
+                        }
                     }
 
+                    // Trim the rafter lines to the polygon
 
-                    parallelStartPoint = null;
-                    //currentParallelLineMode = ParallelLineMode.None;
 
-                    if (tempParallelLine != null)
-                    {
-                        OverlayLayer.Children.Remove(tempParallelLine);
-                        tempParallelLine = null;
-                    }
+                    //if (currentParallelLineMode == ParallelLineMode.EdgePerp)
+                    //{
+                    //    drawingService.DrawPerpendicularFromClick(MemberLayer, p2, nearestEdge);
+                    //}
+                    //else
+                    //{
+
+                    //}
+
+
+                    //parallelStartPoint = null;
+                    ////currentParallelLineMode = ParallelLineMode.None;
+
+                    //if (tempParallelLine != null)
+                    //{
+                    //    OverlayLayer.Children.Remove(tempParallelLine);
+                    //    tempParallelLine = null;
+                    //}
 
                     Mouse.OverrideCursor = null;
 
@@ -338,11 +363,11 @@ namespace StructuralPlanner
                 }
             }
 
-            // --- Parallel line preview ---
-            if (currentParallelLineMode != ParallelLineMode.None && parallelStartPoint != null)
-            {
-                drawingService.DrawParallelLinesPreview(OverlayLayer, parallelLinePreview, currentPolygonForLines, currentLineMode);
-            }
+            //// --- Parallel line preview ---
+            //if (currentParallelLineMode != ParallelLineMode.None && parallelStartPoint != null)
+            //{
+            //    drawingService.DrawParallelLinesPreview(OverlayLayer, parallelLinePreview, currentPolygonForLines, currentLineMode);
+            //}
 
 
 
