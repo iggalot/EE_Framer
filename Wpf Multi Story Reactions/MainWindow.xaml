@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Structural Planner" Height="900" Width="1400"
         WindowStartupLocation="CenterScreen"
-        KeyDown="Window_KeyDown"
+        PreviewKeyDown="Window_PreviewKeyDown"
         Background="#FF2B2B2B">
 
     <Grid>
@@ -20,32 +20,30 @@
         <StackPanel Grid.Row="0" Grid.ColumnSpan="2"
                     Orientation="Horizontal"
                     Background="#FF3C3C3C"
-                    Height="60"
+                    Height="30"
                     VerticalAlignment="Top">
 
             <!-- Floor control buttons -->
-            <Button x:Name="btnFloor1Button" Content="Floor 1" Width="90" Margin="5" Click="btnFloor1Button_Click"/>
-            <Button x:Name="btnFloor2Button" Content="Floor 2" Width="90" Margin="5" Click="btnFloor2Button_Click"/>
-            <Button x:Name="btnFloor3Button" Content="Roof" Width="90" Margin="5" Click="btnRoofButton_Click"/>
+            <Button x:Name="btnFoundationButton" Content="FDN" Width="30" Margin="5" Click="btnFoundationButton_Click"/>
+            <Button x:Name="btnFloor1Button" Content="L1" Width="30" Margin="5" Click="btnFloor1Button_Click"/>
+            <Button x:Name="btnFloor2Button" Content="L2" Width="30" Margin="5" Click="btnFloor2Button_Click"/>
+            <Button x:Name="btnFloor3Button" Content="L3" Width="30" Margin="5" Click="btnFloor3Button_Click"/>
+            <Button x:Name="btnRoofButton" Content="R4" Width="30" Margin="5" Click="btnRoofButton_Click"/>
 
-            <Separator Width="20"/>
+            <Separator Width="10"/>
 
-            <!-- Beam controls -->
+            <!-- Member creation controls -->
             <Button x:Name="btnAddBeamButton" Content="Add Beam" Width="100" Margin="5" Click="btnAddBeamButton_Click"/>
-            <Button x:Name="btnComputeReactionsButton" Content="Compute Reactions" Width="140" Margin="5" Click="btnComputeReactionsButton_Click"/>
-
-            <Separator Width="20"/>
-
-            <!-- Column controls -->
             <Button x:Name="btnAddColumnButton" Content="Add Column" Width="100" Margin="5" Click="btnAddColumnButton_Click"/>
             <Button x:Name="btnAddPolygonButton" Content="Add Polygon" Width="110" Margin="5" Click="btnAddPolygonButton_Click"/>
             <Button x:Name="btnAddParallelLineButton" Content="Add Parallel Line" Width="140" Margin="5" Click="btnAddParallelLineButton_Click"/>
-            <Separator Width="20"/>
+            <Separator Width="10"/>
 
             <!-- Misc -->
+            <Button x:Name="btnComputeReactionsButton" Content="Compute Reactions" Width="140" Margin="5" Click="btnComputeReactionsButton_Click"/>
             <Button x:Name="btnClearButton" Content="Clear All" Width="100" Margin="5" Click="btnClearButton_Click"/>
             <Button x:Name="btnCreateRoofButton" Content="Create Test Roof" Width="130" Margin="5" Click="btnCreateRoofButton_Click"/>
-
+            <Separator Width="10"/>
         </StackPanel>
 
         <!-- ================= LEFT PANEL ================= -->

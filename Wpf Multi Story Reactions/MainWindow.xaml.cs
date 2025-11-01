@@ -19,7 +19,7 @@ namespace StructuralPlanner
         private List<Node> tempNodes = new List<Node>();
         private List<Polygon> finalizedPolygons = new List<Polygon>();
 
-        private int currentFloor = 0;
+        private int currentFloor = 1;
         private bool addingBeam = false;
         private bool addingColumn = false;
         private bool addingPolygon = false;
@@ -56,21 +56,23 @@ namespace StructuralPlanner
             drawingService.DrawGridLines(GridLayer);
             RedrawMembers();
 
-            ResetUI();
+            ResetUIAddMemberButtons();
+            ResetUILayerButtons();
+            ResetUIMainApp();
+
+            // Initial states
+            btnFloor1Button.Background = Brushes.PaleGreen;
+
+            addingBeam = true;
+            btnAddBeamButton.Background = Brushes.Pink;
         }
 
         // Restore the UI and application to initial state
-        private void ResetUI()
+        private void ResetUIMainApp()
         {
-            spParallelLinesButtons.Visibility = Visibility.Collapsed;
-
             MemberLayer.MouseLeftButtonDown -= MemberLayer_MouseLeftButtonDown_Polygon;
 
 
-            addingBeam = false;
-            addingColumn = false;
-            addingPolygon = false;
-            addingParallelLine = false;
             parallelStartPoint = null;
             parallelLinePreview.Clear();
             currentPolygonForLines = null;
@@ -86,31 +88,97 @@ namespace StructuralPlanner
             UpdateNodeConnectionsDataGrid();
         }
 
+        private void ResetUILayerButtons()
+        {
+            btnFoundationButton.Background = Brushes.LightGray;
+            btnFloor1Button.Background = Brushes.LightGray;
+            btnFloor2Button.Background = Brushes.LightGray;
+            btnFloor3Button.Background = Brushes.LightGray;
+            btnRoofButton.Background = Brushes.LightGray;
+
+            spParallelLinesButtons.Visibility = Visibility.Collapsed;
+        }
+
+        private void ResetUIAddMemberButtons()
+        {
+            addingBeam = false;
+            addingColumn = false;
+            addingPolygon = false;
+            addingParallelLine = false;
+            btnAddBeamButton.Background = Brushes.LightGray;
+            btnAddColumnButton.Background = Brushes.LightGray;
+            btnAddParallelLineButton.Background = Brushes.LightGray;
+            btnAddPolygonButton.Background = Brushes.LightGray;
+        }
+
         // Helper function to call into our canvas manager
-        private void RedrawMembers() { canvasManager.RedrawMembers(MemberLayer, OverlayLayer, Members, Nodes, finalizedPolygons, previewPolygon, tempLineToMouse, currentFloor); }
+        private void RedrawMembers() 
+        { 
+            canvasManager.RedrawMembers(MemberLayer, OverlayLayer, Members, Nodes, finalizedPolygons, previewPolygon, tempLineToMouse, currentFloor); }
 
         // ==================== Member Buttons ====================
         #region UI Button Clicks
-        private void btnFloor1Button_Click(object sender, RoutedEventArgs e) { currentFloor = 0; RedrawMembers(); }
-        private void btnFloor2Button_Click(object sender, RoutedEventArgs e) { currentFloor = 1; RedrawMembers(); }
-        private void btnRoofButton_Click(object sender, RoutedEventArgs e) { currentFloor = 2; RedrawMembers(); }
+        private void btnFoundationButton_Click(object sender, RoutedEventArgs e) 
+        { 
+            currentFloor = 0;
+            ResetUIMainApp();
+            ResetUILayerButtons();
+            btnFoundationButton.Background = Brushes.PaleGreen;
+        }
+
+        private void btnFloor1Button_Click(object sender, RoutedEventArgs e) 
+        { 
+            currentFloor = 1;
+            ResetUIMainApp();
+            ResetUILayerButtons();
+            btnFloor1Button.Background = Brushes.PaleGreen;
+        }
+        private void btnFloor2Button_Click(object sender, RoutedEventArgs e) 
+        { 
+            currentFloor = 2;
+            ResetUIMainApp();
+            ResetUILayerButtons();
+            btnFloor2Button.Background = Brushes.PaleGreen;
+        }
+        private void btnFloor3Button_Click(object sender, RoutedEventArgs e) 
+        { 
+            currentFloor = 3;
+            ResetUIMainApp();
+            ResetUILayerButtons();
+            btnFloor3Button.Background = Brushes.PaleGreen;
+        }
+        private void btnRoofButton_Click(object sender, RoutedEventArgs e) 
+        { 
+            currentFloor = 4;
+            ResetUIMainApp();
+            ResetUILayerButtons();
+            btnRoofButton.Background = Brushes.PaleGreen;
+        }
 
 
         private void btnAddBeamButton_Click(object sender, RoutedEventArgs e)
         {
-            ResetUI();
-            addingBeam = true; addingColumn = false; pendingStartPoint = null; Mouse.OverrideCursor = Cursors.Cross;
+            ResetUIMainApp();
+            ResetUIAddMemberButtons();
+            btnAddBeamButton.Background = Brushes.Pink;
+            addingBeam = true; 
+            Mouse.OverrideCursor = Cursors.Cross;
         }
 
         private void btnAddColumnButton_Click(object sender, RoutedEventArgs e)
         {
-            ResetUI();
-            addingBeam = false; addingColumn = true; pendingStartPoint = null; Mouse.OverrideCursor = Cursors.Cross;
+            ResetUIMainApp();
+            ResetUIAddMemberButtons();
+            btnAddColumnButton.Background = Brushes.Pink;
+            addingColumn = true; 
+            Mouse.OverrideCursor = Cursors.Cross;
         }
 
         private void btnAddPolygonButton_Click(object sender, RoutedEventArgs e)
         {
-            ResetUI();
+            ResetUIMainApp();
+            ResetUIAddMemberButtons();
+            btnAddPolygonButton.Background = Brushes.Pink;
             addingPolygon = true;
 
             if (previewPolygon != null) OverlayLayer.Children.Remove(previewPolygon);
@@ -123,10 +191,11 @@ namespace StructuralPlanner
 
         private void btnAddParallelLineButton_Click(object sender, RoutedEventArgs e)
         {
-            ResetUI();
+            ResetUIMainApp();
+            ResetUIAddMemberButtons();
             spParallelLinesButtons.Visibility = Visibility.Visible;
+            btnAddParallelLineButton.Background = Brushes.Pink;
             addingParallelLine = true;
-            pendingStartPoint = null;
             Mouse.OverrideCursor = Cursors.Cross;
         }
 
@@ -136,7 +205,7 @@ namespace StructuralPlanner
             Nodes.Clear();
             finalizedPolygons.Clear();
 
-            ResetUI();
+            ResetUIMainApp();
         }
 
         private void btnComputeReactionsButton_Click(object sender, RoutedEventArgs e)
@@ -280,11 +349,11 @@ namespace StructuralPlanner
 
         private void MainCanvas_MouseWheel(object sender, MouseWheelEventArgs e) { /* Optional zoom */ }
 
-        private void Window_KeyDown(object sender, KeyEventArgs e)
+        private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
         {
             if (e.Key == Key.Escape)
             {
-                ResetUI();
+                ResetUIMainApp();
                 e.Handled = true; // optional — prevents event bubbling
             }
         }
@@ -340,7 +409,7 @@ namespace StructuralPlanner
                 var startNode = snappingService.GetNearbyNode(pendingStartPoint.Value, Nodes, currentFloor, snapTolerance) ?? CreateNode(pendingStartPoint.Value, currentFloor);
                 CreateBeam(startNode, clickedNode);
                 
-                ResetUI();
+                ResetUIMainApp();
                 addingBeam = true;
             }
         }
@@ -353,13 +422,11 @@ namespace StructuralPlanner
                 return;
             }
 
-            var clickedNode = snappingService.GetNearbyNode(click, Nodes, currentFloor, snapTolerance) ?? CreateNode(click, currentFloor);
-
             var topNode = snappingService.GetNearbyNode(click, Nodes, currentFloor, snapTolerance) ?? CreateNode(click, currentFloor);
             var bottomNode = snappingService.GetNearbyNode(new Point(click.X, click.Y), Nodes, currentFloor - 1, snapTolerance) ?? CreateNode(new Point(click.X, click.Y), currentFloor - 1);
             CreateColumn(topNode, bottomNode);
 
-            ResetUI();
+            ResetUIMainApp();
             addingColumn = true;
         }
 
@@ -472,7 +539,7 @@ namespace StructuralPlanner
                 CreatePolygon(finalPolygon);
 
                 
-                ResetUI();
+                ResetUIMainApp();
                 addingPolygon = true;
             }
         }
