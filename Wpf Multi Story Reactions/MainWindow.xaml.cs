@@ -33,6 +33,8 @@ namespace StructuralPlanner
         private bool addingPolygon = false;
 
         private bool showLabels = false;
+        private bool showReactions = false;
+
 
         private Point? pendingStartPoint = null;
         private Polygon previewPolygon = null;
@@ -613,9 +615,9 @@ namespace StructuralPlanner
             HandleAddPolygon();
 
             CreateMember(n1, n2, MemberType.Beam);
-            CreateMember(n2, n3, MemberType.Rafter);
-            CreateMember(n3, n4, MemberType.FloorJoist);
-            CreateMember(n4, n1, MemberType.Purlin);
+            CreateMember(n2, n3, MemberType.Beam);
+            CreateMember(n3, n4, MemberType.Beam);
+            CreateMember(n4, n1, MemberType.Beam);
         }
 
         private Node CreateNode(Point p, int floor)
@@ -627,7 +629,15 @@ namespace StructuralPlanner
         private void CreateMember(Node startNode, Node endNode, MemberType type)
         {
             int beamCount = Members.Count(m => m.Type == MemberType.Beam) + 1;
-            var member = new StructuralMember(type, startNode, endNode);
+
+            StructuralMember member;
+            if(type == MemberType.Rafter || type == MemberType.FloorJoist || type == MemberType.CeilingJoist)
+            {
+                member = new RafterJoistModel(type, startNode, endNode);
+            } else
+            {
+                member = new StructuralMember(type, startNode, endNode);
+            }
             Members.Add(member);
 
             if (!Nodes.Contains(startNode))
@@ -684,6 +694,18 @@ namespace StructuralPlanner
         private void ShowLabelsCheckBox_Unchecked(object sender, RoutedEventArgs e)
         {
             showLabels = false;
+            RedrawMembers(); // optional – refresh display to hide labels
+        }
+
+        private void ShowReactionssCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            showReactions = true;
+            RedrawMembers(); // optional – refresh display to show labels
+        }
+
+        private void ShowReactionsCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        {
+            showReactions = false;
             RedrawMembers(); // optional – refresh display to hide labels
         }
 

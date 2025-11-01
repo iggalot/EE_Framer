@@ -129,7 +129,7 @@ namespace StructuralPlanner.Services
 
         public void DrawNodeLabel(Canvas canvas, Node n)
         {
-            var lbl = new TextBlock { Text = n.NodeID, Foreground = Brushes.Black, FontWeight = FontWeights.Bold };
+            var lbl = new TextBlock { Text = n.NodeID, Foreground = Brushes.Black, FontSize = 10, FontWeight = FontWeights.Bold };
             Canvas.SetLeft(lbl, n.Location.X + 4);
             Canvas.SetTop(lbl, n.Location.Y - 4);
             canvas.Children.Add(lbl);
@@ -173,5 +173,65 @@ namespace StructuralPlanner.Services
 
             return snapCircle;
         }
+
+        public void DrawMemberReactions(Canvas cnv, StructuralMember m, Node n)
+        {
+            if (m == null || n == null) return;
+
+            string text = "—";
+
+            var tg = new TransformGroup();
+
+            Vector direction = m.EndNode.Location - m.StartNode.Location;
+            direction.Normalize(); // now it has length 1
+
+            double offset = 20; // move 10 units along the member line
+            int sign = 1;
+
+            if (IsSameNode(n, m.StartNode))
+            {
+                text = $"{m.ReactionFactored_Start_lbf:F0}";
+
+            }
+            else if (IsSameNode(n, m.EndNode))
+            {
+                text = $"{m.ReactionFactored_End_lbf:F0}";
+                sign = -1;
+            }
+
+            Point shifted = n.Location + sign * direction * offset;
+
+            var lbl = new TextBlock
+            {
+                Text = text,
+                Foreground = Brushes.DarkRed,
+                FontSize = 10,
+                FontWeight = FontWeights.Bold,
+                Background = Brushes.Yellow // for visibility while testing
+            };
+
+            lbl.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
+            Size size = lbl.DesiredSize;
+
+            double angle = m.Angle;
+            tg.Children.Add(new RotateTransform(angle, size.Width / 2, size.Height / 2));
+
+            // Translate so the label is centered at shifted point
+            tg.Children.Add(new TranslateTransform(shifted.X - size.Width / 2, shifted.Y - size.Height / 2));
+
+
+            lbl.RenderTransform = tg;
+            //Canvas.SetLeft(lbl, n.Location.X + 8);
+            //Canvas.SetTop(lbl, n.Location.Y - 8);
+            cnv.Children.Add(lbl);
+        }
+
+        private bool IsSameNode(Node a, Node b, double tol = 1e-3)
+        {
+            if (a == null || b == null) return false;
+            return (Math.Abs(a.Location.X - b.Location.X) < tol &&
+                    Math.Abs(a.Location.Y - b.Location.Y) < tol);
+        }
+
     }
 }

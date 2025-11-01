@@ -15,7 +15,7 @@ namespace StructuralPlanner.Managers
             _drawingService = drawingService;
         }
 
-        public void RedrawMembers(Canvas memberLayer, Canvas overlayLayer, List<StructuralMember> members, List<Node> nodes, List<Polygon> finalizedPolygons, Polygon previewPolygon, Line tempLineToMouse, FramingLayer currentFloor, bool showLabels = true)
+        public void RedrawMembers(Canvas memberLayer, Canvas overlayLayer, List<StructuralMember> members, List<Node> nodes, List<Polygon> finalizedPolygons, Polygon previewPolygon, Line tempLineToMouse, FramingLayer currentFloor, bool showLabels = true, bool showReactions = true)
         {
             memberLayer.Children.Clear();
             overlayLayer.Children.Clear();
@@ -37,6 +37,12 @@ namespace StructuralPlanner.Managers
                 if (showLabels)
                 {
                     _drawingService.DrawMemberLabel(overlayLayer, m);
+                }
+
+                if (showReactions)
+                {
+                    _drawingService.DrawMemberReactions(memberLayer, m, m.StartNode);
+                    _drawingService.DrawMemberReactions(memberLayer, m, m.EndNode);
                 }
             }
 
