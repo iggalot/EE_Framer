@@ -23,9 +23,6 @@ namespace StructuralPlanner.Services
             // get unit vect perpendicular to selected edge
             Vector3D perp_unit_vec = MathHelpers.Normalize(MathHelpers.CrossProduct(dir_unit_vec, (-1.0) * new Vector3D(0, 0, 1)));
 
-            int num_spaces_from_intpt_to_start = 0;
-            int num_spaces_from_intpt_to_end = 0;
-
             // find furthest point on perpendicular line
             Point3D current_vertex = new Point3D(0, 0, 0);
 
@@ -85,9 +82,6 @@ namespace StructuralPlanner.Services
             Vector3D dir_unit_vec = new Vector3D(0, 1, 0);
             // get unit vect perpendicular to selected edge
             Vector3D perp_unit_vec = MathHelpers.Normalize(MathHelpers.CrossProduct(dir_unit_vec, (-1.0) * new Vector3D(0, 0, 1)));
-
-            int num_spaces_from_intpt_to_start = 0;
-            int num_spaces_from_intpt_to_end = 0;
 
             // find furthest point on perpendicular line
             Point3D current_vertex = new Point3D(0, 0, 0);

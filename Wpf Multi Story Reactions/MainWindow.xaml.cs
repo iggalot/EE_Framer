@@ -7,6 +7,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Media3D;
 using System.Windows.Shapes;
+using Wpf_Multi_Story_Reactions.Models;
 
 namespace StructuralPlanner
 {
@@ -19,7 +20,7 @@ namespace StructuralPlanner
         private List<Node> tempNodes = new List<Node>();
         private List<Polygon> finalizedPolygons = new List<Polygon>();
 
-        private int currentFloor = 1;
+        private FramingLayer currentFloor = FramingLayer.FloorLevel1;
         private bool addingBeam = false;
         private bool addingColumn = false;
         private bool addingPolygon = false;
@@ -120,7 +121,7 @@ namespace StructuralPlanner
         #region UI Button Clicks
         private void btnFoundationButton_Click(object sender, RoutedEventArgs e) 
         { 
-            currentFloor = 0;
+            currentFloor = FramingLayer.Foundation;
             ResetUIMainApp();
             ResetUILayerButtons();
             btnFoundationButton.Background = Brushes.PaleGreen;
@@ -128,28 +129,28 @@ namespace StructuralPlanner
 
         private void btnFloor1Button_Click(object sender, RoutedEventArgs e) 
         { 
-            currentFloor = 1;
+            currentFloor = FramingLayer.FloorLevel1;
             ResetUIMainApp();
             ResetUILayerButtons();
             btnFloor1Button.Background = Brushes.PaleGreen;
         }
         private void btnFloor2Button_Click(object sender, RoutedEventArgs e) 
         { 
-            currentFloor = 2;
+            currentFloor = FramingLayer.FloorLevel2;
             ResetUIMainApp();
             ResetUILayerButtons();
             btnFloor2Button.Background = Brushes.PaleGreen;
         }
         private void btnFloor3Button_Click(object sender, RoutedEventArgs e) 
         { 
-            currentFloor = 3;
+            currentFloor = FramingLayer.FloorLevel3;
             ResetUIMainApp();
             ResetUILayerButtons();
             btnFloor3Button.Background = Brushes.PaleGreen;
         }
         private void btnRoofButton_Click(object sender, RoutedEventArgs e) 
         { 
-            currentFloor = 4;
+            currentFloor = FramingLayer.Roof;
             ResetUIMainApp();
             ResetUILayerButtons();
             btnRoofButton.Background = Brushes.PaleGreen;
@@ -259,7 +260,7 @@ namespace StructuralPlanner
             if (!addingPolygon) return;
 
             Point click = e.GetPosition(MemberLayer);
-            Node node = snappingService.GetNearbyNode(click, Nodes, currentFloor, snapTolerance) ?? CreateNode(click, currentFloor);
+            Node node = snappingService.GetNearbyNode(click, Nodes, (int)currentFloor, snapTolerance) ?? CreateNode(click, (int)currentFloor);
 
             if (!polygonNodes.Contains(node))
                 polygonNodes.Add(node);
@@ -294,7 +295,7 @@ namespace StructuralPlanner
             {
                 // --- Determine closest node ---
                 Node closestNode = Nodes
-                    .Where(n => n.Floor == currentFloor)
+                    .Where(n => n.Floor == (int)currentFloor)
                     .OrderBy(n => GeometryHelper.Distance(mousePos, n.Location))
                     .FirstOrDefault();
 
@@ -365,7 +366,7 @@ namespace StructuralPlanner
         {
             var tableData = Members.Select(m => new
             {
-                ID = m.ID,
+                ID = m.MemberID,
                 Type = m.Type.ToString(),
                 StartX = Math.Round(m.StartNode.Location.X, 1),
                 StartY = Math.Round(m.StartNode.Location.Y, 1),
@@ -398,7 +399,7 @@ namespace StructuralPlanner
 
         private void HandleAddBeam(Point click)
         {
-            var clickedNode = snappingService.GetNearbyNode(click, Nodes, currentFloor, snapTolerance) ?? CreateNode(click, currentFloor);
+            var clickedNode = snappingService.GetNearbyNode(click, Nodes, (int)currentFloor, snapTolerance) ?? CreateNode(click, (int)currentFloor);
 
             if (pendingStartPoint == null)
             {
@@ -406,7 +407,7 @@ namespace StructuralPlanner
             }
             else
             {
-                var startNode = snappingService.GetNearbyNode(pendingStartPoint.Value, Nodes, currentFloor, snapTolerance) ?? CreateNode(pendingStartPoint.Value, currentFloor);
+                var startNode = snappingService.GetNearbyNode(pendingStartPoint.Value, Nodes, (int)currentFloor, snapTolerance) ?? CreateNode(pendingStartPoint.Value, (int)currentFloor);
                 CreateBeam(startNode, clickedNode);
                 
                 ResetUIMainApp();
@@ -422,8 +423,8 @@ namespace StructuralPlanner
                 return;
             }
 
-            var topNode = snappingService.GetNearbyNode(click, Nodes, currentFloor, snapTolerance) ?? CreateNode(click, currentFloor);
-            var bottomNode = snappingService.GetNearbyNode(new Point(click.X, click.Y), Nodes, currentFloor - 1, snapTolerance) ?? CreateNode(new Point(click.X, click.Y), currentFloor - 1);
+            var topNode = snappingService.GetNearbyNode(click, Nodes, (int)currentFloor, snapTolerance) ?? CreateNode(click, (int)currentFloor);
+            var bottomNode = snappingService.GetNearbyNode(new Point(click.X, click.Y), Nodes, (int)currentFloor - 1, snapTolerance) ?? CreateNode(new Point(click.X, click.Y), (int)currentFloor - 1);
             CreateColumn(topNode, bottomNode);
 
             ResetUIMainApp();
@@ -457,6 +458,7 @@ namespace StructuralPlanner
                 if (poly != null)
                 {
                     poly.Fill = Brushes.Red;
+                    poly.Opacity = 0.5;
                 }
 
                 List<(Point3D start, Point3D end)> parallelLines = new List<(Point3D start, Point3D end)>();
@@ -464,42 +466,36 @@ namespace StructuralPlanner
                 switch (currentParallelLineMode)
                 {
                     case ParallelLineMode.Horizontal:
-                        p2.X = nearestPoint.Value.X + 100;
                         parallelLines = MemberLayoutService.CreateHorizontalRafters(poly, 16);
                         break;
                     case ParallelLineMode.Vertical:
-                        p2.Y = nearestPoint.Value.Y + 100;
                         parallelLines = MemberLayoutService.CreateVerticalRafters(poly, 16);
                         break;
                     case ParallelLineMode.EdgePerp:
-                        p2 = nearestPoint.Value;
                         Point3D start = new Point3D(nearestEdge.StartNode.Location.X, nearestEdge.StartNode.Location.Y, 0);
                         Point3D end = new Point3D(nearestEdge.EndNode.Location.X, nearestEdge.EndNode.Location.Y, 0);
                         parallelLines = MemberLayoutService.CreatePerpendicularRafters(poly, start, end, 16);
                         break;
                 }
 
-                // Draw the rafter lines
                 if (parallelLines != null)
                 {
+                    MemberType type = MemberType.Joist;
+                    if(currentFloor == FramingLayer.Roof)
+                    {
+                        type = MemberType.Rafter;
+                    }
                     foreach (var line in parallelLines)
                     {
-                        Line ln = new Line
-                        {
-                            X1 = line.start.X,
-                            Y1 = line.start.Y,
-                            X2 = line.end.X,
-                            Y2 = line.end.Y,
-                            Stroke = Brushes.Blue,
-                            StrokeThickness = 1,
-                            //StrokeDashArray = new DoubleCollection { 4, 2 }
-                        };
-                        //tempParallelLine = ln;
-                        MemberLayer.Children.Add(ln);
+                        Node start = CreateNode(line.start.ToPoint(), (int)currentFloor);
+                        Node end = CreateNode(line.end.ToPoint(), (int)currentFloor);
+                        StructuralMember new_mem = new StructuralMember(type, start, end);
+                        Members.Add(new_mem);
                     }
                 }
 
-                return; // skip other logic
+                ResetUIMainApp();
+                addingPolygon = true;
             }
         }
 
@@ -558,10 +554,10 @@ namespace StructuralPlanner
             //Node n4 = CreateNode(new Point(100, 300), currentFloor);
 
             // For arbitrary roof
-            Node n1 = CreateNode(new Point(50, 50), currentFloor);
-            Node n2 = CreateNode(new Point(300, 400), currentFloor);
-            Node n3 = CreateNode(new Point(480, 175), currentFloor);
-            Node n4 = CreateNode(new Point(220, 25), currentFloor);
+            Node n1 = CreateNode(new Point(50, 50), (int)currentFloor);
+            Node n2 = CreateNode(new Point(300, 400), (int)currentFloor);
+            Node n3 = CreateNode(new Point(480, 175), (int)currentFloor);
+            Node n4 = CreateNode(new Point(220, 25), (int)currentFloor);
 
             polygonNodes.Add(n1);
             polygonNodes.Add(n4);
@@ -585,7 +581,7 @@ namespace StructuralPlanner
         private void CreateBeam(Node startNode, Node endNode)
         {
             int beamCount = Members.Count(m => m.Type == MemberType.Beam) + 1;
-            var member = new StructuralMember($"B{beamCount}", MemberType.Beam, startNode, endNode);
+            var member = new StructuralMember(MemberType.Beam, startNode, endNode);
             Members.Add(member);
 
             if (!Nodes.Contains(startNode))
@@ -605,7 +601,7 @@ namespace StructuralPlanner
         private void CreateColumn(Node startNode, Node endNode)
         {
             int colCount = Members.Count(m => m.Type == MemberType.Column) + 1;
-            var member = new StructuralMember($"C{colCount}", MemberType.Column, startNode, endNode);
+            var member = new StructuralMember(MemberType.Column, startNode, endNode);
             Members.Add(member);
             if (!Nodes.Contains(startNode))
             {

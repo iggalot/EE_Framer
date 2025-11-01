@@ -52,13 +52,13 @@
                     VerticalAlignment="Stretch">
 
             <TextBlock Text="Legend" FontWeight="Bold" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
-            <StackPanel Orientation="Vertical" Margin="10,0,0,0">
+            <!--<StackPanel Orientation="Vertical" Margin="10,0,0,0">
                 <TextBlock Text="Blue: Beams (current floor)" Foreground="LightBlue" Margin="0,5"/>
                 <TextBlock Text="Gray: Columns (current floor)" Foreground="LightGray" Margin="0,5"/>
                 <TextBlock Text="Light Gray: Columns (below floor)" Foreground="#66FFFFFF" Margin="0,5"/>
                 <TextBlock Text="Green: Supports / Reactions" Foreground="LightGreen" Margin="0,5"/>
                 <TextBlock Text="Grid: Reference Lines" Foreground="LightSlateGray" Margin="0,5"/>
-            </StackPanel>
+            </StackPanel>-->
 
             <Separator Margin="10,20,10,10"/>
 

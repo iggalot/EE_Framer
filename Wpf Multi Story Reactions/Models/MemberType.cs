@@ -2,12 +2,12 @@
 {
     public enum MemberType
     {
-        Beam,
-        Column,
-        Rafter,
-        Joist,
-        Purlin,
-        Wall,
-        Brace,
+        Beam = 0,
+        Column = 1,
+        Rafter = 2,
+        Joist = 3,
+        Purlin = 4,
+        Wall = 5,
+        RoofBrace = 6,
     }
 }

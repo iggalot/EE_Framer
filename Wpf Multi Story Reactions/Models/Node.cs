@@ -24,6 +24,6 @@ namespace StructuralPlanner.Models
             Floor = floor;
         }
 
-        public string ConnectedMemberIDs => string.Join(", ", ConnectedMembers.ConvertAll(m => m.ID));
+        public string ConnectedMemberIDs => string.Join(", ", ConnectedMembers.ConvertAll(m => m.MemberID));
     }
 }
