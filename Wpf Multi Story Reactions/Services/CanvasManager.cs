@@ -15,7 +15,7 @@ namespace StructuralPlanner.Managers
             _drawingService = drawingService;
         }
 
-        public void RedrawMembers(Canvas memberLayer, Canvas overlayLayer, List<StructuralMember> members, List<Node> nodes, List<Polygon> finalizedPolygons, Polygon previewPolygon, Line tempLineToMouse, FramingLayer currentFloor)
+        public void RedrawMembers(Canvas memberLayer, Canvas overlayLayer, List<StructuralMember> members, List<Node> nodes, List<Polygon> finalizedPolygons, Polygon previewPolygon, Line tempLineToMouse, FramingLayer currentFloor, bool showLabels = true)
         {
             memberLayer.Children.Clear();
             overlayLayer.Children.Clear();
@@ -31,17 +31,18 @@ namespace StructuralPlanner.Managers
             }
 
             foreach (var m in members.Where(m => m.Floor == (int)currentFloor))
+            {
                 _drawingService.DrawMember(memberLayer, m, 1.0);
+
+                if (showLabels)
+                {
+                    _drawingService.DrawMemberLabel(overlayLayer, m);
+                }
+            }
 
             if (currentFloor > 0)
                 foreach (var m in members.Where(m => m.Floor == (int)currentFloor - 1))
                     _drawingService.DrawMember(memberLayer, m, 0.3);
-
-            foreach (var n in nodes.Where(n => n.Floor == (int)currentFloor))
-                _drawingService.DrawNode(memberLayer, n);
-
-
-
 
             // Keep preview polygon and temp line if they exist
             if (previewPolygon != null && !overlayLayer.Children.Contains(previewPolygon))
@@ -49,6 +50,16 @@ namespace StructuralPlanner.Managers
 
             if (tempLineToMouse != null && !overlayLayer.Children.Contains(tempLineToMouse))
                 overlayLayer.Children.Add(tempLineToMouse);
+
+            foreach (var n in nodes.Where(n => n.Floor == (int)currentFloor))
+            {
+                _drawingService.DrawNode(memberLayer, n);
+
+                if (showLabels)
+                {
+                    _drawingService.DrawNodeLabel(overlayLayer, n);
+                }
+            }
         }
     }
 }

@@ -249,4 +249,6 @@ namespace StructuralPlanner.Services
         public static Vector3D ToVector(this Point3D p) => new Vector3D(p.X, p.Y, p.Z);
         public static Point3D ToPoint3D(this Vector3D v) => new Point3D(v.X, v.Y, v.Z);
     }
+
+
 }

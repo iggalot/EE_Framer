@@ -50,6 +50,13 @@
         <StackPanel Grid.Row="1" Grid.Column="0"
                     Background="#FF3C3C3C"
                     VerticalAlignment="Stretch">
+            <CheckBox x:Name="ShowLabelsCheckBox"
+                Content="Show Labels"
+                Margin="5"
+                IsChecked="True"
+                Foreground="White"
+                Checked="ShowLabelsCheckBox_Checked"
+                Unchecked="ShowLabelsCheckBox_Unchecked"/>
 
             <TextBlock Text="Legend" FontWeight="Bold" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
             <!--<StackPanel Orientation="Vertical" Margin="10,0,0,0">

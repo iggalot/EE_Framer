@@ -2,6 +2,7 @@
 using System.Data.Common;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Ink;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
@@ -91,6 +92,11 @@ namespace StructuralPlanner.Services
             };
 
             canvas.Children.Add(line);
+        }
+
+        public void DrawMemberLabel(Canvas canvas, StructuralMember m)
+        {
+            Brush stroke = Brushes.Black;
 
             var lbl = new TextBlock { Text = m.MemberID, Foreground = stroke, FontSize = 10, FontWeight = FontWeights.Bold, Background = Brushes.Transparent };
 
@@ -117,7 +123,10 @@ namespace StructuralPlanner.Services
             Canvas.SetLeft(ellipse, n.Location.X - size / 2);
             Canvas.SetTop(ellipse, n.Location.Y - size / 2);
             canvas.Children.Add(ellipse);
+        }
 
+        public void DrawNodeLabel(Canvas canvas, Node n)
+        {
             var lbl = new TextBlock { Text = n.NodeID, Foreground = Brushes.Black, FontWeight = FontWeights.Bold };
             Canvas.SetLeft(lbl, n.Location.X + 4);
             Canvas.SetTop(lbl, n.Location.Y - 4);
@@ -144,6 +153,23 @@ namespace StructuralPlanner.Services
             double spacing = 20, width = 1200, height = 800;
             for (double x = 0; x < width; x += spacing) cnv.Children.Add(new Line { X1 = x, Y1 = 0, X2 = x, Y2 = height, Stroke = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0)), StrokeThickness = 1 });
             for (double y = 0; y < height; y += spacing) cnv.Children.Add(new Line { X1 = 0, Y1 = y, X2 = width, Y2 = y, Stroke = new SolidColorBrush(Color.FromArgb(30, 0, 0, 0)), StrokeThickness = 1 });
+        }
+
+        public Ellipse DrawSnapCircle(Canvas cnv, Point snapPos, double snapTolerance, Brush fill, Brush stroke, double strokeThickness = 1, double opacity = 1.0)
+        {
+            // Draw the snapping circle
+            Ellipse snapCircle = new Ellipse
+            {
+                Width = snapTolerance * 2,
+                Height = snapTolerance * 2,
+                Stroke = Brushes.Orange,
+                StrokeThickness = 1
+            };
+            Canvas.SetLeft(snapCircle, snapPos.X - snapTolerance);
+            Canvas.SetTop(snapCircle, snapPos.Y - snapTolerance);
+            cnv.Children.Add(snapCircle);
+
+            return snapCircle;
         }
     }
 }

@@ -26,13 +26,14 @@ namespace StructuralPlanner
         private bool addingPolygon = false;
         private bool addingParallelLine = false;
 
+        private bool showLabels = false;
+
         private Point? pendingStartPoint = null;
         private Polygon previewPolygon = null;
         private Ellipse snapCircle = null;
         private Line tempLineToMouse = null;  // For polygon preview line following mouse
 
-        private enum ParallelLineMode { None, EdgePerp, Vertical, Horizontal }
-        private ParallelLineMode currentParallelLineMode = ParallelLineMode.None;
+        private ParallelLineMode currentParallelLineMode = ParallelLineMode.PerpendicularEdge;
         private Point? parallelStartPoint = null;   // first click
         private Line tempPolygonLine = null;
 
@@ -73,7 +74,6 @@ namespace StructuralPlanner
         {
             MemberLayer.MouseLeftButtonDown -= MemberLayer_MouseLeftButtonDown_Polygon;
 
-
             parallelStartPoint = null;
             parallelLinePreview.Clear();
             currentPolygonForLines = null;
@@ -83,6 +83,8 @@ namespace StructuralPlanner
             tempLineToMouse = null;  // For polygon preview line following mouse
             pendingStartPoint = null;
             polygonNodes.Clear();
+
+            Mouse.OverrideCursor = Cursors.Arrow;
 
             RedrawMembers();
             UpdateDataGrid();
@@ -113,9 +115,13 @@ namespace StructuralPlanner
         }
 
         // Helper function to call into our canvas manager
-        private void RedrawMembers() 
-        { 
-            canvasManager.RedrawMembers(MemberLayer, OverlayLayer, Members, Nodes, finalizedPolygons, previewPolygon, tempLineToMouse, currentFloor); }
+        private void RedrawMembers()
+        {
+            if (canvasManager != null)
+            {
+                canvasManager.RedrawMembers(MemberLayer, OverlayLayer, Members, Nodes, finalizedPolygons, previewPolygon, tempLineToMouse, currentFloor, showLabels);
+            }
+        }
 
         // ==================== Member Buttons ====================
         #region UI Button Clicks
@@ -217,7 +223,7 @@ namespace StructuralPlanner
         // ==================== Polygon Alignment Buttons ====================
         private void btnEdgePerp_Click(object sender, RoutedEventArgs e)
         {
-            currentParallelLineMode = ParallelLineMode.EdgePerp;
+            currentParallelLineMode = ParallelLineMode.PerpendicularEdge;
             parallelStartPoint = null;
             Mouse.OverrideCursor = Cursors.Cross;
         }
@@ -249,10 +255,15 @@ namespace StructuralPlanner
         {
             Point click = e.GetPosition(MemberLayer);
 
-            if (addingBeam) HandleAddBeam(click);
+            if (addingBeam) HandleAddBeam(click, MemberType.Beam);
             else if (addingColumn) HandleAddColumn(click);
             else if (addingPolygon) HandleAddPolygon();
-            else if (addingParallelLine) HandleParallelLineCreation(click);
+            else if (addingParallelLine)
+            {
+                HandleParallelLineCreation(click, MemberType.Rafter);
+            }
+
+            RedrawMembers();
         }
 
         private void MemberLayer_MouseLeftButtonDown_Polygon(object sender, MouseButtonEventArgs e)
@@ -280,6 +291,8 @@ namespace StructuralPlanner
             }
 
             HandleAddPolygon();
+
+            RedrawMembers();
         }
 
         private void MemberLayer_MouseMove(object sender, MouseEventArgs e)
@@ -304,17 +317,9 @@ namespace StructuralPlanner
                 if (closestNode != null && GeometryHelper.Distance(mousePos, closestNode.Location) <= snapTolerance)
                     snapPos = closestNode.Location;
 
-                // Draw the snapping circle
-                snapCircle = new Ellipse
-                {
-                    Width = snapTolerance * 2,
-                    Height = snapTolerance * 2,
-                    Stroke = Brushes.Orange,
-                    StrokeThickness = 1
-                };
-                Canvas.SetLeft(snapCircle, snapPos.X - snapTolerance);
-                Canvas.SetTop(snapCircle, snapPos.Y - snapTolerance);
-                OverlayLayer.Children.Add(snapCircle);
+
+                snapCircle = drawingService.DrawSnapCircle(OverlayLayer, snapPos, snapTolerance, Brushes.Orange, Brushes.Orange, 1);
+
 
                 // --- Add Beam preview line to mouse ---
                 if (addingBeam && pendingStartPoint.HasValue)
@@ -397,7 +402,7 @@ namespace StructuralPlanner
 
 
 
-        private void HandleAddBeam(Point click)
+        private void HandleAddBeam(Point click, MemberType type)
         {
             var clickedNode = snappingService.GetNearbyNode(click, Nodes, (int)currentFloor, snapTolerance) ?? CreateNode(click, (int)currentFloor);
 
@@ -408,7 +413,7 @@ namespace StructuralPlanner
             else
             {
                 var startNode = snappingService.GetNearbyNode(pendingStartPoint.Value, Nodes, (int)currentFloor, snapTolerance) ?? CreateNode(pendingStartPoint.Value, (int)currentFloor);
-                CreateBeam(startNode, clickedNode);
+                CreateMember(startNode, clickedNode, type);
                 
                 ResetUIMainApp();
                 addingBeam = true;
@@ -431,72 +436,65 @@ namespace StructuralPlanner
             addingColumn = true;
         }
 
-        private void HandleParallelLineCreation(Point click)
+        private void HandleParallelLineCreation(Point click, MemberType type)
         {
             // --- Parallel line handling ---
-            if (currentParallelLineMode != ParallelLineMode.None)
+            parallelStartPoint = click;
+
+            Point p1 = parallelStartPoint.Value;
+            Point p2 = click;
+            StructuralMember nearestEdge = null;
+
+            Point? nearestPoint = MemberDetectionService.FindNearestPointOnMember(p1, Members, out nearestEdge);
+
+            if (nearestPoint.HasValue is false || nearestEdge is null) return;
+
+            p1 = nearestPoint.Value;
+
+            Polygon poly = GeometryHelper.GetPolygonContainingPoint(click, finalizedPolygons);
+
+            //// Reset the polygon color and then Find the first polygon that contains the point and highlight it red
+            //foreach (Polygon p in finalizedPolygons)
+            //{
+            //    p.Fill = new SolidColorBrush(Color.FromArgb(100, 0, 255, 0));
+            //}
+
+
+            //if (poly != null)
+            //{
+            //    poly.Fill = Brushes.Red;
+            //    poly.Opacity = 0.5;
+            //}
+
+            List<(Point3D start, Point3D end)> parallelLines = new List<(Point3D start, Point3D end)>();
+
+            switch (currentParallelLineMode)
             {
-                parallelStartPoint = click;
-
-                Point p1 = parallelStartPoint.Value;
-                Point p2 = click;
-                StructuralMember nearestEdge = null;
-
-                Point? nearestPoint = MemberDetectionService.FindNearestPointOnMember(p1, Members, out nearestEdge);
-
-                if (nearestPoint.HasValue is false || nearestEdge is null) return;
-
-                p1 = nearestPoint.Value;
-
-                // Reset the polygon color and then Find the first polygon that contains the point and highlight it red
-                foreach (Polygon p in finalizedPolygons)
-                {
-                    p.Fill = new SolidColorBrush(Color.FromArgb(100, 0, 255, 0));
-                }
-
-                Polygon poly = GeometryHelper.GetPolygonContainingPoint(click, finalizedPolygons);
-                if (poly != null)
-                {
-                    poly.Fill = Brushes.Red;
-                    poly.Opacity = 0.5;
-                }
-
-                List<(Point3D start, Point3D end)> parallelLines = new List<(Point3D start, Point3D end)>();
-
-                switch (currentParallelLineMode)
-                {
-                    case ParallelLineMode.Horizontal:
-                        parallelLines = MemberLayoutService.CreateHorizontalRafters(poly, 16);
-                        break;
-                    case ParallelLineMode.Vertical:
-                        parallelLines = MemberLayoutService.CreateVerticalRafters(poly, 16);
-                        break;
-                    case ParallelLineMode.EdgePerp:
-                        Point3D start = new Point3D(nearestEdge.StartNode.Location.X, nearestEdge.StartNode.Location.Y, 0);
-                        Point3D end = new Point3D(nearestEdge.EndNode.Location.X, nearestEdge.EndNode.Location.Y, 0);
-                        parallelLines = MemberLayoutService.CreatePerpendicularRafters(poly, start, end, 16);
-                        break;
-                }
-
-                if (parallelLines != null)
-                {
-                    MemberType type = MemberType.Joist;
-                    if(currentFloor == FramingLayer.Roof)
-                    {
-                        type = MemberType.Rafter;
-                    }
-                    foreach (var line in parallelLines)
-                    {
-                        Node start = CreateNode(line.start.ToPoint(), (int)currentFloor);
-                        Node end = CreateNode(line.end.ToPoint(), (int)currentFloor);
-                        StructuralMember new_mem = new StructuralMember(type, start, end);
-                        Members.Add(new_mem);
-                    }
-                }
-
-                ResetUIMainApp();
-                addingPolygon = true;
+                case ParallelLineMode.Horizontal:
+                    parallelLines = MemberLayoutService.CreateHorizontalRafters(poly, 16);
+                    break;
+                case ParallelLineMode.Vertical:
+                    parallelLines = MemberLayoutService.CreateVerticalRafters(poly, 16);
+                    break;
+                case ParallelLineMode.PerpendicularEdge:
+                    Point3D start = new Point3D(nearestEdge.StartNode.Location.X, nearestEdge.StartNode.Location.Y, 0);
+                    Point3D end = new Point3D(nearestEdge.EndNode.Location.X, nearestEdge.EndNode.Location.Y, 0);
+                    parallelLines = MemberLayoutService.CreatePerpendicularRafters(poly, start, end, 16);
+                    break;
             }
+
+            if (parallelLines != null)
+            {
+                foreach (var line in parallelLines)
+                {
+                    Node start = CreateNode(line.start.ToPoint(), (int)currentFloor);
+                    Node end = CreateNode(line.end.ToPoint(), (int)currentFloor);
+                    CreateMember(start, end, type);
+                }
+            }
+
+            ResetUIMainApp();
+            addingParallelLine = true;
         }
 
 
@@ -506,12 +504,6 @@ namespace StructuralPlanner
             if (polygonNodes.Count < 3)
             {
                 return;
-            }
-
-            // TODO
-            else if (polygonNodes.Count == 3)
-            {
-                // TODO:  how to determine if we have a triangle or rectangle region?
             }
 
             // if four points, we can create a polygon for sure.
@@ -566,10 +558,10 @@ namespace StructuralPlanner
             polygonNodes.Add(n3);
             HandleAddPolygon();
 
-            CreateBeam(n1, n2);
-            CreateBeam(n2, n3);
-            CreateBeam(n3, n4);
-            CreateBeam(n4, n1);
+            CreateMember(n1, n2, MemberType.Beam);
+            CreateMember(n2, n3, MemberType.Rafter);
+            CreateMember(n3, n4, MemberType.Joist);
+            CreateMember(n4, n1, MemberType.Purlin);
         }
 
         private Node CreateNode(Point p, int floor)
@@ -578,10 +570,10 @@ namespace StructuralPlanner
             return node;
         }
 
-        private void CreateBeam(Node startNode, Node endNode)
+        private void CreateMember(Node startNode, Node endNode, MemberType type)
         {
             int beamCount = Members.Count(m => m.Type == MemberType.Beam) + 1;
-            var member = new StructuralMember(MemberType.Beam, startNode, endNode);
+            var member = new StructuralMember(type, startNode, endNode);
             Members.Add(member);
 
             if (!Nodes.Contains(startNode))
@@ -628,5 +620,18 @@ namespace StructuralPlanner
                 }
             }
         }
+
+        private void ShowLabelsCheckBox_Checked(object sender, RoutedEventArgs e)
+        {
+            showLabels = true;
+            RedrawMembers(); // optional – refresh display to show labels
+        }
+
+        private void ShowLabelsCheckBox_Unchecked(object sender, RoutedEventArgs e)
+        {
+            showLabels = false;
+            RedrawMembers(); // optional – refresh display to hide labels
+        }
+
     }
 }

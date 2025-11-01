@@ -1,6 +1,6 @@
 ﻿namespace StructuralPlanner.Models
 {
-    public enum LineMode 
+    public enum ParallelLineMode 
     { 
         PerpendicularEdge, 
         Vertical, 
