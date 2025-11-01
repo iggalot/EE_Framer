@@ -23,8 +23,13 @@ namespace StructuralPlanner
         private FramingLayer currentFloor = FramingLayer.FloorLevel1;
         private bool addingBeam = false;
         private bool addingColumn = false;
+        private bool addingRafter = false;
+        private bool addingJoist = false;
+        private bool addingPurlin = false;
+        private bool addingWall = false;
+        private bool addingRoofBrace = false;
+
         private bool addingPolygon = false;
-        private bool addingParallelLine = false;
 
         private bool showLabels = false;
 
@@ -106,11 +111,16 @@ namespace StructuralPlanner
         {
             addingBeam = false;
             addingColumn = false;
-            addingPolygon = false;
-            addingParallelLine = false;
+            addingRafter = false;
+            addingJoist = false;
+            addingPurlin = false;
+            addingWall = false;
+            addingRoofBrace = false;
+            
             btnAddBeamButton.Background = Brushes.LightGray;
             btnAddColumnButton.Background = Brushes.LightGray;
-            btnAddParallelLineButton.Background = Brushes.LightGray;
+            btnAddRafterButton.Background = Brushes.LightGray;
+            btnAddJoistButton.Background = Brushes.LightGray;
             btnAddPolygonButton.Background = Brushes.LightGray;
         }
 
@@ -196,13 +206,23 @@ namespace StructuralPlanner
             MemberLayer.MouseLeftButtonDown += MemberLayer_MouseLeftButtonDown_Polygon;
         }
 
-        private void btnAddParallelLineButton_Click(object sender, RoutedEventArgs e)
+        private void btnAddRafterButton_Click(object sender, RoutedEventArgs e)
         {
             ResetUIMainApp();
             ResetUIAddMemberButtons();
             spParallelLinesButtons.Visibility = Visibility.Visible;
-            btnAddParallelLineButton.Background = Brushes.Pink;
-            addingParallelLine = true;
+            btnAddRafterButton.Background = Brushes.Pink;
+            addingRafter = true;
+            Mouse.OverrideCursor = Cursors.Cross;
+        }
+
+        private void btnAddJoistButton_Click(object sender, RoutedEventArgs e)
+        {
+            ResetUIMainApp();
+            ResetUIAddMemberButtons();
+            spParallelLinesButtons.Visibility = Visibility.Visible;
+            btnAddJoistButton.Background = Brushes.Pink;
+            addingJoist = true;
             Mouse.OverrideCursor = Cursors.Cross;
         }
 
@@ -255,12 +275,30 @@ namespace StructuralPlanner
         {
             Point click = e.GetPosition(MemberLayer);
 
-            if (addingBeam) HandleAddBeam(click, MemberType.Beam);
-            else if (addingColumn) HandleAddColumn(click);
-            else if (addingPolygon) HandleAddPolygon();
-            else if (addingParallelLine)
+            if (addingBeam)
+            { 
+                HandleAddBeam(click, MemberType.Beam);
+                addingBeam = true;
+            }
+            else if (addingColumn)
+            {
+                HandleAddColumn(click, MemberType.Column);
+                addingColumn = true;
+            }
+            else if (addingPolygon)
+            {
+                HandleAddPolygon();
+                addingPolygon = true;
+            }
+            else if (addingRafter)
             {
                 HandleParallelLineCreation(click, MemberType.Rafter);
+                addingRafter = true;
+            }
+            else if (addingJoist)
+            {
+                HandleParallelLineCreation(click, MemberType.Joist);
+                addingJoist = true;
             }
 
             RedrawMembers();
@@ -414,13 +452,11 @@ namespace StructuralPlanner
             {
                 var startNode = snappingService.GetNearbyNode(pendingStartPoint.Value, Nodes, (int)currentFloor, snapTolerance) ?? CreateNode(pendingStartPoint.Value, (int)currentFloor);
                 CreateMember(startNode, clickedNode, type);
-                
                 ResetUIMainApp();
-                addingBeam = true;
             }
         }
 
-        private void HandleAddColumn(Point click)
+        private void HandleAddColumn(Point click, MemberType type)
         {
             if (currentFloor == 0)
             {
@@ -431,9 +467,8 @@ namespace StructuralPlanner
             var topNode = snappingService.GetNearbyNode(click, Nodes, (int)currentFloor, snapTolerance) ?? CreateNode(click, (int)currentFloor);
             var bottomNode = snappingService.GetNearbyNode(new Point(click.X, click.Y), Nodes, (int)currentFloor - 1, snapTolerance) ?? CreateNode(new Point(click.X, click.Y), (int)currentFloor - 1);
             CreateColumn(topNode, bottomNode);
-
             ResetUIMainApp();
-            addingColumn = true;
+
         }
 
         private void HandleParallelLineCreation(Point click, MemberType type)
@@ -492,9 +527,6 @@ namespace StructuralPlanner
                     CreateMember(start, end, type);
                 }
             }
-
-            ResetUIMainApp();
-            addingParallelLine = true;
         }
 
 
@@ -525,10 +557,8 @@ namespace StructuralPlanner
 
                 // Add to overlay and store reference so it persists on redraw
                 CreatePolygon(finalPolygon);
-
-                
                 ResetUIMainApp();
-                addingPolygon = true;
+
             }
         }
 
