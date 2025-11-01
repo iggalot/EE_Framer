@@ -1,8 +1,6 @@
 ﻿using StructuralPlanner.Models;
-using System.Data.Common;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Ink;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
@@ -37,7 +35,9 @@ namespace StructuralPlanner.Services
                     return Brushes.Red;
                 case MemberType.Rafter:
                     return Brushes.Blue;
-                case MemberType.Joist:
+                case MemberType.FloorJoist:
+                    return Brushes.Green;
+                case MemberType.CeilingJoist:
                     return Brushes.Green;
                 case MemberType.Purlin:
                     return Brushes.Cyan;
@@ -60,7 +60,9 @@ namespace StructuralPlanner.Services
                     return 2;
                 case MemberType.Rafter:
                     return 1;
-                case MemberType.Joist:
+                case MemberType.FloorJoist:
+                    return 1;
+                case MemberType.CeilingJoist:
                     return 1;
                 case MemberType.Purlin:
                     return 2;

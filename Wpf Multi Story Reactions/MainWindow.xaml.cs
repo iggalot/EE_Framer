@@ -24,7 +24,8 @@ namespace StructuralPlanner
         private bool addingBeam = false;
         private bool addingColumn = false;
         private bool addingRafter = false;
-        private bool addingJoist = false;
+        private bool addingFloorJoist = false;
+        private bool addingCeilingJoist = false;
         private bool addingPurlin = false;
         private bool addingWall = false;
         private bool addingRoofBrace = false;
@@ -49,6 +50,9 @@ namespace StructuralPlanner
         private readonly CanvasManager canvasManager;
 
         private const double snapTolerance = 15;
+        private double default_rafter_spacing = 16;
+        private double default_joist_spacing = 24;
+
 
         // Polygon parallel line preview
         private Polygon currentPolygonForLines = null;
@@ -112,7 +116,9 @@ namespace StructuralPlanner
             addingBeam = false;
             addingColumn = false;
             addingRafter = false;
-            addingJoist = false;
+            addingFloorJoist = false;
+            addingCeilingJoist = false;
+
             addingPurlin = false;
             addingWall = false;
             addingRoofBrace = false;
@@ -120,7 +126,9 @@ namespace StructuralPlanner
             btnAddBeamButton.Background = Brushes.LightGray;
             btnAddColumnButton.Background = Brushes.LightGray;
             btnAddRafterButton.Background = Brushes.LightGray;
-            btnAddJoistButton.Background = Brushes.LightGray;
+            btnAddFloorJoistButton.Background = Brushes.LightGray;
+            btnAddCeilingJoistButton.Background = Brushes.LightGray;
+
             btnAddPolygonButton.Background = Brushes.LightGray;
         }
 
@@ -216,13 +224,23 @@ namespace StructuralPlanner
             Mouse.OverrideCursor = Cursors.Cross;
         }
 
-        private void btnAddJoistButton_Click(object sender, RoutedEventArgs e)
+        private void btnAddFloorJoistButton_Click(object sender, RoutedEventArgs e)
         {
             ResetUIMainApp();
             ResetUIAddMemberButtons();
             spParallelLinesButtons.Visibility = Visibility.Visible;
-            btnAddJoistButton.Background = Brushes.Pink;
-            addingJoist = true;
+            btnAddFloorJoistButton.Background = Brushes.Pink;
+            addingFloorJoist = true;
+            Mouse.OverrideCursor = Cursors.Cross;
+        }
+
+        private void btnAddCeilingJoistButton_Click(object sender, RoutedEventArgs e)
+        {
+            ResetUIMainApp();
+            ResetUIAddMemberButtons();
+            spParallelLinesButtons.Visibility = Visibility.Visible;
+            btnAddCeilingJoistButton.Background = Brushes.Pink;
+            addingCeilingJoist = true;
             Mouse.OverrideCursor = Cursors.Cross;
         }
 
@@ -295,10 +313,15 @@ namespace StructuralPlanner
                 HandleParallelLineCreation(click, MemberType.Rafter);
                 addingRafter = true;
             }
-            else if (addingJoist)
+            else if (addingCeilingJoist)
             {
-                HandleParallelLineCreation(click, MemberType.Joist);
-                addingJoist = true;
+                HandleParallelLineCreation(click, MemberType.CeilingJoist);
+                addingCeilingJoist = true;
+            }
+            else if (addingFloorJoist)
+            {
+                HandleParallelLineCreation(click, MemberType.FloorJoist);
+                addingFloorJoist = true;
             }
 
             RedrawMembers();
@@ -503,18 +526,19 @@ namespace StructuralPlanner
 
             List<(Point3D start, Point3D end)> parallelLines = new List<(Point3D start, Point3D end)>();
 
+            double spacing = (type == MemberType.Rafter ? default_rafter_spacing : default_joist_spacing);
             switch (currentParallelLineMode)
             {
                 case ParallelLineMode.Horizontal:
-                    parallelLines = MemberLayoutService.CreateHorizontalRafters(poly, 16);
+                    parallelLines = MemberLayoutService.CreateHorizontalRafters(poly, spacing);
                     break;
                 case ParallelLineMode.Vertical:
-                    parallelLines = MemberLayoutService.CreateVerticalRafters(poly, 16);
+                    parallelLines = MemberLayoutService.CreateVerticalRafters(poly, spacing);
                     break;
                 case ParallelLineMode.PerpendicularEdge:
                     Point3D start = new Point3D(nearestEdge.StartNode.Location.X, nearestEdge.StartNode.Location.Y, 0);
                     Point3D end = new Point3D(nearestEdge.EndNode.Location.X, nearestEdge.EndNode.Location.Y, 0);
-                    parallelLines = MemberLayoutService.CreatePerpendicularRafters(poly, start, end, 16);
+                    parallelLines = MemberLayoutService.CreatePerpendicularRafters(poly, start, end, spacing);
                     break;
             }
 
@@ -590,7 +614,7 @@ namespace StructuralPlanner
 
             CreateMember(n1, n2, MemberType.Beam);
             CreateMember(n2, n3, MemberType.Rafter);
-            CreateMember(n3, n4, MemberType.Joist);
+            CreateMember(n3, n4, MemberType.FloorJoist);
             CreateMember(n4, n1, MemberType.Purlin);
         }
 

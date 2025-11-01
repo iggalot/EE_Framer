@@ -37,7 +37,9 @@
             <Button x:Name="btnAddColumnButton" Content="Column" Width="80" Margin="5" Click="btnAddColumnButton_Click"/>
             <Button x:Name="btnAddPolygonButton" Content="Polygon" Width="80" Margin="5" Click="btnAddPolygonButton_Click"/>
             <Button x:Name="btnAddRafterButton" Content="Rafter" Width="80" Margin="5" Click="btnAddRafterButton_Click"/>
-            <Button x:Name="btnAddJoistButton" Content="Joist" Width="80" Margin="5" Click="btnAddJoistButton_Click"/>
+            <Button x:Name="btnAddFloorJoistButton" Content="FloorJoist" Width="110" Margin="5" Click="btnAddFloorJoistButton_Click"/>
+            <Button x:Name="btnAddCeilingJoistButton" Content="CeilingJoist" Width="110" Margin="5" Click="btnAddCeilingJoistButton_Click"/>
+
             <Separator Width="10"/>
 
             <!-- Misc -->

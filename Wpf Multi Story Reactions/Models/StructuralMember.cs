@@ -55,8 +55,11 @@ namespace StructuralPlanner.Models
                 case MemberType.Rafter:
                     prefix = "R";
                     break;
-                case MemberType.Joist:
-                    prefix = "J";
+                case MemberType.FloorJoist:
+                    prefix = "FJ";
+                    break;
+                case MemberType.CeilingJoist:
+                    prefix = "CJ";
                     break;
                 case MemberType.Purlin:
                     prefix = "P";
