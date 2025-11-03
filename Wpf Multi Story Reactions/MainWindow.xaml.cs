@@ -83,11 +83,7 @@ namespace StructuralPlanner
 
 
             snapCircle = null;  // clear the snapping circle 
-
-            //previewPolygon = null;
-
-
-            //polygonNodes.Clear();
+            pendingStartPoint = null;
 
             Mouse.OverrideCursor = Cursors.Arrow;
 
@@ -118,7 +114,9 @@ namespace StructuralPlanner
             addingPurlin = false;
             addingWall = false;
             addingRoofBrace = false;
-            
+            addingPolygon = false;
+
+
             btnAddBeamButton.Background = Brushes.LightGray;
             btnAddColumnButton.Background = Brushes.LightGray;
             btnAddRafterButton.Background = Brushes.LightGray;
@@ -472,7 +470,7 @@ namespace StructuralPlanner
                 var startNode = snappingService.GetNearbyNode(pendingStartPoint.Value, Nodes, (int)currentFloor, snapTolerance) ?? CreateNode(pendingStartPoint.Value, (int)currentFloor);
                 CreateMember(startNode, clickedNode, type);
 
-                pendingStartPoint = null; // clear the first point
+                pendingStartPoint = clickedNode.Location; // clear the first point
                 tempLineToMouse = null;  // clear the preview line
             }
 
@@ -504,21 +502,21 @@ namespace StructuralPlanner
 
             Point p1 = parallelStartPoint.Value;
             Point p2 = click;
-            StructuralMember nearestEdge = null;
-
-            Point? nearestPoint = MemberDetectionService.FindNearestPointOnMember(p1, Members, out nearestEdge);
-
-            if (nearestPoint.HasValue is false || nearestEdge is null) return;
-
-            p1 = nearestPoint.Value;
 
             Region region = GeometryHelper.GetPolygonContainingPoint(click, PolygonRegions);
 
-            //// Reset the polygon color and then Find the first polygon that contains the point and highlight it red
-            //foreach (Polygon p in PolygonRegions)
-            //{
-            //    p.Fill = new SolidColorBrush(Color.FromArgb(100, 0, 255, 0));
-            //}
+            (Point start, Point end) nearestEdge;
+            Point? nearestPoint = MemberDetectionService.FindNearestPointOnRegionEdge(p1, region, out nearestEdge);
+
+            if (nearestPoint.HasValue is false) return;
+
+            p1 = nearestPoint.Value;
+
+            // Reset the polygon color and then Find the first polygon that contains the point and highlight it red
+            foreach (Region p in PolygonRegions)
+            {
+                p.Poly.Fill = new SolidColorBrush(Color.FromArgb(100, 0, 255, 0));
+            }
 
 
             //if (poly != null)
@@ -527,33 +525,33 @@ namespace StructuralPlanner
             //    poly.Opacity = 0.5;
             //}
 
-            List<(Point3D start, Point3D end)> parallelLines = new List<(Point3D start, Point3D end)>();
+                List<(Point3D start, Point3D end)> parallelLines = new List<(Point3D start, Point3D end)>();
 
-            double spacing = (type == MemberType.Rafter ? default_rafter_spacing : default_joist_spacing);
-            switch (currentParallelLineMode)
-            {
-                case ParallelLineMode.Horizontal:
-                    parallelLines = MemberLayoutService.CreateHorizontalRafters(region.Poly, spacing);
-                    break;
-                case ParallelLineMode.Vertical:
-                    parallelLines = MemberLayoutService.CreateVerticalRafters(region.Poly, spacing);
-                    break;
-                case ParallelLineMode.PerpendicularEdge:
-                    Point3D start = new Point3D(nearestEdge.StartNode.Location.X, nearestEdge.StartNode.Location.Y, 0);
-                    Point3D end = new Point3D(nearestEdge.EndNode.Location.X, nearestEdge.EndNode.Location.Y, 0);
-                    parallelLines = MemberLayoutService.CreatePerpendicularRafters(region.Poly, start, end, spacing);
-                    break;
-            }
-
-            if (parallelLines != null)
-            {
-                foreach (var line in parallelLines)
+                double spacing = (type == MemberType.Rafter ? default_rafter_spacing : default_joist_spacing);
+                switch (currentParallelLineMode)
                 {
-                    Node start = CreateNode(line.start.ToPoint(), (int)currentFloor);
-                    Node end = CreateNode(line.end.ToPoint(), (int)currentFloor);
-                    CreateMember(start, end, type);
+                    case ParallelLineMode.Horizontal:
+                        parallelLines = MemberLayoutService.CreateHorizontalRafters(region.Poly, spacing);
+                        break;
+                    case ParallelLineMode.Vertical:
+                        parallelLines = MemberLayoutService.CreateVerticalRafters(region.Poly, spacing);
+                        break;
+                    case ParallelLineMode.PerpendicularEdge:
+                        parallelLines = MemberLayoutService.CreatePerpendicularRafters(region.Poly, nearestEdge.start.ToPoint3D(), nearestEdge.end.ToPoint3D(), spacing);
+                        break;
+                    default:
+                        throw new NotImplementedException("Unknown parallel line mode detected: " + currentParallelLineMode);
                 }
-            }
+
+                if (parallelLines != null)
+                {
+                    foreach (var line in parallelLines)
+                    {
+                        Node start = CreateNode(line.start.ToPoint(), (int)currentFloor);
+                        Node end = CreateNode(line.end.ToPoint(), (int)currentFloor);
+                        CreateMember(start, end, type);
+                    }
+                }
             RedrawMembers();
 
         }
