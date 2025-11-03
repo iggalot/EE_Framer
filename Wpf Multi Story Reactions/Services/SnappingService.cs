@@ -1,7 +1,5 @@
-﻿using System.Collections.Generic;
-using System.Linq;
+﻿using StructuralPlanner.Models;
 using System.Windows;
-using StructuralPlanner.Models;
 
 namespace StructuralPlanner.Services
 {

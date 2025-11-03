@@ -325,8 +325,6 @@ namespace StructuralPlanner
                 HandleParallelLineCreation(click, MemberType.FloorJoist);
                 addingFloorJoist = true;
             }
-
-            RedrawMembers();
         }
 
         private void MemberLayer_MouseLeftButtonDown_Polygon(object sender, MouseButtonEventArgs e)
@@ -477,8 +475,10 @@ namespace StructuralPlanner
             {
                 var startNode = snappingService.GetNearbyNode(pendingStartPoint.Value, Nodes, (int)currentFloor, snapTolerance) ?? CreateNode(pendingStartPoint.Value, (int)currentFloor);
                 CreateMember(startNode, clickedNode, type);
-                ResetUIMainApp();
             }
+
+            RedrawMembers();
+
         }
 
         private void HandleAddColumn(Point click, MemberType type)
@@ -492,8 +492,8 @@ namespace StructuralPlanner
             var topNode = snappingService.GetNearbyNode(click, Nodes, (int)currentFloor, snapTolerance) ?? CreateNode(click, (int)currentFloor);
             var bottomNode = snappingService.GetNearbyNode(new Point(click.X, click.Y), Nodes, (int)currentFloor - 1, snapTolerance) ?? CreateNode(new Point(click.X, click.Y), (int)currentFloor - 1);
             CreateColumn(topNode, bottomNode);
-            ResetUIMainApp();
 
+            RedrawMembers();
         }
 
         private void HandleParallelLineCreation(Point click, MemberType type)
@@ -553,6 +553,8 @@ namespace StructuralPlanner
                     CreateMember(start, end, type);
                 }
             }
+            RedrawMembers();
+
         }
 
 
@@ -583,8 +585,7 @@ namespace StructuralPlanner
 
                 // Add to overlay and store reference so it persists on redraw
                 CreatePolygon(finalPolygon);
-                ResetUIMainApp();
-
+                RedrawMembers();
             }
         }
 
