@@ -12,14 +12,10 @@ namespace StructuralPlanner.Models
 
         public List<StructuralMember> ConnectedMembers { get; } = new List<StructuralMember>();
 
-        public Node()
-        {
+        public Node(Point location, int floor)
+        { 
             _nodeCounter++;
             NodeID = $"N{_nodeCounter}";
-        }
-
-        public Node(Point location, int floor) : this()
-        {
             Location = location;
             Floor = floor;
         }

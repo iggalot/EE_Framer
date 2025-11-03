@@ -55,12 +55,6 @@ namespace StructuralPlanner
         private double default_rafter_spacing = 16;
         private double default_joist_spacing = 24;
 
-
-        // Polygon parallel line preview
-        private Polygon currentPolygonForLines = null;
-        private List<Line> parallelLinePreview = new List<Line>();
-
-
         public MainWindow()
         {
             InitializeComponent();
@@ -85,15 +79,13 @@ namespace StructuralPlanner
         {
             MemberLayer.MouseLeftButtonDown -= MemberLayer_MouseLeftButtonDown_Polygon;
 
-            parallelStartPoint = null;
-            parallelLinePreview.Clear();
-            currentPolygonForLines = null;
-            parallelLinePreview.Clear();
-            previewPolygon = null;
-            snapCircle = null;
-            tempLineToMouse = null;  // For polygon preview line following mouse
-            pendingStartPoint = null;
-            polygonNodes.Clear();
+
+            snapCircle = null;  // clear the snapping circle 
+
+            //previewPolygon = null;
+
+
+            //polygonNodes.Clear();
 
             Mouse.OverrideCursor = Cursors.Arrow;
 
@@ -296,7 +288,7 @@ namespace StructuralPlanner
             Point click = e.GetPosition(MemberLayer);
 
             if (addingBeam)
-            { 
+            {
                 HandleAddBeam(click, MemberType.Beam);
                 addingBeam = true;
             }
@@ -475,6 +467,9 @@ namespace StructuralPlanner
             {
                 var startNode = snappingService.GetNearbyNode(pendingStartPoint.Value, Nodes, (int)currentFloor, snapTolerance) ?? CreateNode(pendingStartPoint.Value, (int)currentFloor);
                 CreateMember(startNode, clickedNode, type);
+
+                pendingStartPoint = null; // clear the first point
+                tempLineToMouse = null;  // clear the preview line
             }
 
             RedrawMembers();
@@ -492,6 +487,8 @@ namespace StructuralPlanner
             var topNode = snappingService.GetNearbyNode(click, Nodes, (int)currentFloor, snapTolerance) ?? CreateNode(click, (int)currentFloor);
             var bottomNode = snappingService.GetNearbyNode(new Point(click.X, click.Y), Nodes, (int)currentFloor - 1, snapTolerance) ?? CreateNode(new Point(click.X, click.Y), (int)currentFloor - 1);
             CreateColumn(topNode, bottomNode);
+
+            pendingStartPoint = null;  // clear the first point if there is one
 
             RedrawMembers();
         }
@@ -585,6 +582,10 @@ namespace StructuralPlanner
 
                 // Add to overlay and store reference so it persists on redraw
                 CreatePolygon(finalPolygon);
+
+                polygonNodes.Clear();  // clear our list of polygon points
+                tempLineToMouse = null; // clear the temp line
+
                 RedrawMembers();
             }
         }
@@ -629,8 +630,6 @@ namespace StructuralPlanner
 
         private void CreateMember(Node startNode, Node endNode, MemberType type)
         {
-            int beamCount = Members.Count(m => m.Type == MemberType.Beam) + 1;
-
             StructuralMember member;
             if(type == MemberType.Rafter || type == MemberType.FloorJoist || type == MemberType.CeilingJoist)
             {
@@ -657,7 +656,6 @@ namespace StructuralPlanner
 
         private void CreateColumn(Node startNode, Node endNode)
         {
-            int colCount = Members.Count(m => m.Type == MemberType.Column) + 1;
             var member = new StructuralMember(MemberType.Column, startNode, endNode);
             Members.Add(member);
             if (!Nodes.Contains(startNode))

@@ -43,36 +43,58 @@ namespace StructuralPlanner.Models
 
         public StructuralMember(MemberType type, Node start, Node end)
         {
-            Type = type;
-
-            // left most is start.
-            if (start.Location.X < end.Location.X)
+            if (type == MemberType.Column)
             {
-                StartNode = start;
-                EndNode = end;
-            } else if (start.Location.X > end.Location.X)
-            {
-                StartNode = end;
-                EndNode = start;
-            }
-            else
-            {
-                // left most is start.
-                if (start.Location.Y < end.Location.Y)
+                if (start.Floor > end.Floor)
                 {
                     StartNode = start;
                     EndNode = end;
                 }
-                else if (start.Location.Y > end.Location.Y)
+                else if (start.Floor < end.Floor)
                 {
                     StartNode = end;
                     EndNode = start;
                 }
                 else
                 {
-                    throw new Exception("Start and end nodes are the same.");
+                    throw new Exception("Start and end nodes for a column cannot be on the same floor.");
                 }
             }
+            else
+            {
+                // left most is start.
+                if (start.Location.X < end.Location.X)
+                {
+                    StartNode = start;
+                    EndNode = end;
+                }
+                else if (start.Location.X > end.Location.X)
+                {
+                    StartNode = end;
+                    EndNode = start;
+                }
+                else
+                {
+                    // left most is start.
+                    if (start.Location.Y < end.Location.Y)
+                    {
+                        StartNode = start;
+                        EndNode = end;
+                    }
+                    else if (start.Location.Y > end.Location.Y)
+                    {
+                        StartNode = end;
+                        EndNode = start;
+                    }
+                    else
+                    {
+                        throw new Exception("Start and end nodes are the same.");
+                    }
+                }
+            }
+
+            Type = type;
+
             InitializeMember();
         }
 

@@ -16,8 +16,8 @@ namespace StructuralPlanner.Tests
             Node n3 = new Node(new Point(10, 10), 0);
 
             // Create members connecting nodes
-            StructuralMember m1 = new StructuralMember { ID = "M1", StartNode = n1, EndNode = n2, Type = MemberType.Beam };
-            StructuralMember m2 = new StructuralMember { ID = "M2", StartNode = n2, EndNode = n3, Type = MemberType.Beam };
+            StructuralMember m1 = new StructuralMember (MemberType.Beam, n1, n2);
+            StructuralMember m2 = new StructuralMember (MemberType.Beam, n1, n2);
 
             // Connect members to nodes
             n1.ConnectedMembers.Add(m1);
@@ -33,7 +33,7 @@ namespace StructuralPlanner.Tests
 
             // Assert: the nearest member should be m1
             Assert.IsNotNull(nearest);
-            Assert.AreEqual("M1", nearest.ID);
+            Assert.AreEqual("M1", nearest.MemberID);
         }
 
         [TestMethod]

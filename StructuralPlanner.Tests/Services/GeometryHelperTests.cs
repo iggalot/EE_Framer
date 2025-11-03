@@ -25,8 +25,8 @@ namespace StructuralPlanner.Tests.Services
 
             var edge = new StructuralPlanner.Models.StructuralMember
             {
-                StartNode = new StructuralPlanner.Models.Node { Location = new Point(0, 0) },
-                EndNode = new StructuralPlanner.Models.Node { Location = new Point(0, 10) }
+                StartNode = new StructuralPlanner.Models.Node { Floor = 0, Location = new Point(0, 0) },
+                EndNode = new StructuralPlanner.Models.Node { Floor = 0, Location = new Point(0, 10) }
             };
 
             Point result = GeometryHelper.ProjectPerpendicular(origin, mouse, edge);
