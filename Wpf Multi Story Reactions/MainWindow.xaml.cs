@@ -1,6 +1,7 @@
 ﻿using StructuralPlanner.Managers;
 using StructuralPlanner.Models;
 using StructuralPlanner.Services;
+using System.Linq.Expressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -16,9 +17,10 @@ namespace StructuralPlanner
         // State
         private List<Node> Nodes = new List<Node>();
         private List<StructuralMember> Members = new List<StructuralMember>();
+        private List<Region> PolygonRegions = new List<Region>();
+
         private List<Node> polygonNodes = new List<Node>();
         private List<Node> tempNodes = new List<Node>();
-        private List<Polygon> finalizedPolygons = new List<Polygon>();
 
         private FramingLayer currentFloor = FramingLayer.FloorLevel1;
         private bool addingBeam = false;
@@ -131,7 +133,7 @@ namespace StructuralPlanner
         {
             if (canvasManager != null)
             {
-                canvasManager.RedrawMembers(MemberLayer, OverlayLayer, Members, Nodes, finalizedPolygons, previewPolygon, tempLineToMouse, currentFloor, showLabels);
+                canvasManager.RedrawMembers(MemberLayer, OverlayLayer, Members, Nodes, PolygonRegions, previewPolygon, tempLineToMouse, currentFloor, showLabels);
             }
         }
 
@@ -242,7 +244,7 @@ namespace StructuralPlanner
         {
             Members.Clear();
             Nodes.Clear();
-            finalizedPolygons.Clear();
+            PolygonRegions.Clear();
 
             ResetUIMainApp();
         }
@@ -359,11 +361,11 @@ namespace StructuralPlanner
             // --- Draw snap circle ---
             if (addingBeam || addingBeam || addingPolygon)
             {
+
                 // --- Determine closest node ---
-                Node closestNode = Nodes
-                    .Where(n => n.Floor == (int)currentFloor)
-                    .OrderBy(n => GeometryHelper.Distance(mousePos, n.Location))
-                    .FirstOrDefault();
+                //Node closestNode = snappingService.GetNearbyNode(mousePos, Nodes, (int)currentFloor, snapTolerance) ?? CreateNode(mousePos, (int)currentFloor);
+                Node closestNode = null;
+
 
                 Point snapPos = mousePos;
 
@@ -402,6 +404,8 @@ namespace StructuralPlanner
                     {
                         OverlayLayer.Children.Add(tempLineToMouse);
                     }
+
+                    bool flowControl = drawingService.DrawPolygon(OverlayLayer, previewPolygon, polygonNodes, (int)currentFloor);
                 }
             }
         }
@@ -508,10 +512,10 @@ namespace StructuralPlanner
 
             p1 = nearestPoint.Value;
 
-            Polygon poly = GeometryHelper.GetPolygonContainingPoint(click, finalizedPolygons);
+            Region region = GeometryHelper.GetPolygonContainingPoint(click, PolygonRegions);
 
             //// Reset the polygon color and then Find the first polygon that contains the point and highlight it red
-            //foreach (Polygon p in finalizedPolygons)
+            //foreach (Polygon p in PolygonRegions)
             //{
             //    p.Fill = new SolidColorBrush(Color.FromArgb(100, 0, 255, 0));
             //}
@@ -529,15 +533,15 @@ namespace StructuralPlanner
             switch (currentParallelLineMode)
             {
                 case ParallelLineMode.Horizontal:
-                    parallelLines = MemberLayoutService.CreateHorizontalRafters(poly, spacing);
+                    parallelLines = MemberLayoutService.CreateHorizontalRafters(region.Poly, spacing);
                     break;
                 case ParallelLineMode.Vertical:
-                    parallelLines = MemberLayoutService.CreateVerticalRafters(poly, spacing);
+                    parallelLines = MemberLayoutService.CreateVerticalRafters(region.Poly, spacing);
                     break;
                 case ParallelLineMode.PerpendicularEdge:
                     Point3D start = new Point3D(nearestEdge.StartNode.Location.X, nearestEdge.StartNode.Location.Y, 0);
                     Point3D end = new Point3D(nearestEdge.EndNode.Location.X, nearestEdge.EndNode.Location.Y, 0);
-                    parallelLines = MemberLayoutService.CreatePerpendicularRafters(poly, start, end, spacing);
+                    parallelLines = MemberLayoutService.CreatePerpendicularRafters(region.Poly, start, end, spacing);
                     break;
             }
 
@@ -556,7 +560,7 @@ namespace StructuralPlanner
 
 
         private void HandleAddPolygon()
-        {
+        { 
             // if only two points, can't create a polygon yet
             if (polygonNodes.Count < 3)
             {
@@ -566,22 +570,8 @@ namespace StructuralPlanner
             // if four points, we can create a polygon for sure.
             else if (polygonNodes.Count == 4)
             {
-                // Sort nodes clockwise
-                var sortedNodes = GeometryHelper.OrderNodesClockwise(polygonNodes);
-
-                // Create the final polygon
-                Polygon finalPolygon = new Polygon
-                {
-                    Stroke = Brushes.Green,
-                    StrokeThickness = 2,
-                    Fill = new SolidColorBrush(Color.FromArgb(100, 0, 255, 0))
-                };
-
-                foreach (var n in sortedNodes)
-                    finalPolygon.Points.Add(n.Location);
-
                 // Add to overlay and store reference so it persists on redraw
-                CreatePolygon(finalPolygon);
+                CreatePolygon(polygonNodes);
 
                 polygonNodes.Clear();  // clear our list of polygon points
                 tempLineToMouse = null; // clear the temp line
@@ -671,17 +661,36 @@ namespace StructuralPlanner
             endNode.ConnectedMembers.Add(member);
         }
 
-        private void CreatePolygon(Polygon finalPolygon)
+        private Region CreatePolygon(List<Node> nodes)
         {
-            finalizedPolygons.Add(finalPolygon);
+            // Sort nodes clockwise
+            var sortedNodes = GeometryHelper.OrderNodesClockwise(nodes);
 
-            foreach (var n in polygonNodes)
+            // Create the final polygon
+            Polygon finalPolygon = new Polygon
+            {
+                Stroke = Brushes.Green,
+                StrokeThickness = 2,
+                Fill = new SolidColorBrush(Color.FromArgb(100, 0, 255, 0))
+            };
+
+            foreach (var n in sortedNodes)
+                finalPolygon.Points.Add(n.Location);
+
+            // Add the polygon region to the list
+            Region region = new Region(finalPolygon, (int)currentFloor);
+            PolygonRegions.Add(region);
+
+            // Add the nodes for our polygon
+            foreach (var n in nodes)
             {
                 if (!Nodes.Contains(n))
                 {
                     Nodes.Add(n);
                 }
             }
+
+            return region;
         }
 
         private void ShowLabelsCheckBox_Checked(object sender, RoutedEventArgs e)

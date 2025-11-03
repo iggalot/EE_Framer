@@ -58,21 +58,21 @@ namespace StructuralPlanner.Services
             return edges;
         }
 
-        public static Polygon GetPolygonContainingPoint(Point click, List<Polygon> finalizedPolygons)
+        public static Region GetPolygonContainingPoint(Point click, List<Region> regions)
         {
-            foreach (var poly in finalizedPolygons)
+            foreach (var region in regions)
             {
                 // Convert the polygon points to a StreamGeometry
                 var geometry = new StreamGeometry();
                 using (var ctx = geometry.Open())
                 {
-                    ctx.BeginFigure(poly.Points[0], true, true); // is filled, is closed
-                    ctx.PolyLineTo(poly.Points.Skip(1).ToList(), true, true);
+                    ctx.BeginFigure(region.Poly.Points[0], true, true); // is filled, is closed
+                    ctx.PolyLineTo(region.Poly.Points.Skip(1).ToList(), true, true);
                 }
                 geometry.Freeze(); // optional for performance
 
                 if (geometry.FillContains(click))
-                    return poly;
+                    return region;
             }
 
             return null; // No polygon contains the point

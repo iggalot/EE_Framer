@@ -135,6 +135,14 @@ namespace StructuralPlanner.Services
             canvas.Children.Add(lbl);
         }
 
+        public void DrawRegionLabel(Canvas canvas, Region r)
+        {
+            var lbl = new TextBlock { Text = r.RegionID, Foreground = Brushes.Black, FontSize = 10, FontWeight = FontWeights.Bold };
+            Canvas.SetLeft(lbl, (r.Poly.Points[0].X + r.Poly.Points[2].X) / 2.0 + 4);
+            Canvas.SetTop(lbl, (r.Poly.Points[0].Y + r.Poly.Points[2].Y) / 2.0 - 4);
+            canvas.Children.Add(lbl);
+        }
+
         public Line CreateTempLine(Point start, Point end)
         {
             return new Line { X1 = start.X, Y1 = start.Y, X2 = end.X, Y2 = end.Y, Stroke = Brushes.Orange, StrokeThickness = 2, StrokeDashArray = new DoubleCollection { 4, 2 } };
