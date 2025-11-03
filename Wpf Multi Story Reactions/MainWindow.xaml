@@ -141,6 +141,7 @@
                 Background="#66FFFFFF"
                 Margin="4"
                 Panel.ZIndex="10">
+                    <Button x:Name="btnEdgeParallel" Content="∥ Edge" Width="70" Margin="2" Click="btnEdgeParallel_Click"/>
                     <Button x:Name="btnEdgePerp" Content="⊥ Edge" Width="70" Margin="2" Click="btnEdgePerp_Click"/>
                     <Button x:Name="btnVertical" Content="↕ Vert" Width="70" Margin="2" Click="btnVertical_Click"/>
                     <Button x:Name="btnHorizontal" Content="↔ Horz" Width="70" Margin="2" Click="btnHorizontal_Click"/>

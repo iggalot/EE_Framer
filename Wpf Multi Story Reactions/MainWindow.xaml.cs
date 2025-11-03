@@ -273,6 +273,14 @@ namespace StructuralPlanner
             parallelStartPoint = null;
             Mouse.OverrideCursor = Cursors.Cross;
         }
+
+        private void btnEdgeParallel_Click(object sender, RoutedEventArgs e)
+        {
+            currentParallelLineMode = ParallelLineMode.ParallelEdge;
+            parallelStartPoint = null;
+            Mouse.OverrideCursor = Cursors.Cross;
+        }
+
         private void btnCreateRoofButton_Click(object sender, RoutedEventArgs e)
         {
             CreateTestRoof();
@@ -539,6 +547,9 @@ namespace StructuralPlanner
                     case ParallelLineMode.PerpendicularEdge:
                         parallelLines = MemberLayoutService.CreatePerpendicularRafters(region.Poly, nearestEdge.start.ToPoint3D(), nearestEdge.end.ToPoint3D(), spacing);
                         break;
+                    case ParallelLineMode.ParallelEdge:
+                        parallelLines = MemberLayoutService.CreateParallelRaftersCentered(region.Poly, nearestEdge.start.ToPoint3D(), nearestEdge.end.ToPoint3D(), spacing);
+                    break;
                     default:
                         throw new NotImplementedException("Unknown parallel line mode detected: " + currentParallelLineMode);
                 }

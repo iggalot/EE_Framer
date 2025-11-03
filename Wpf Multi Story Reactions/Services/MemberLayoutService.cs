@@ -187,6 +187,113 @@ namespace StructuralPlanner.Services
             return rafters;
         }
 
+        public static List<(Point3D Start, Point3D End)> CreateParallelRafters(
+                Polygon polygon, Point3D edgeStart, Point3D edgeEnd, double spacing = 16)
+        {
+            if (polygon == null || polygon.Points.Count < 2) return null;
+
+            List<(Point3D Start, Point3D End)> rafters = new List<(Point3D Start, Point3D End)>();
+
+            // --- 1. Edge vector and perpendicular ---
+            Vector3D edgeVec = new Vector3D(edgeEnd.X - edgeStart.X, edgeEnd.Y - edgeStart.Y, 0);
+            Vector3D edgeUnit = MathHelpers.Normalize(edgeVec);
+            Vector3D perpUnit = new Vector3D(-edgeUnit.Y, edgeUnit.X, 0);
+
+            // --- 2. Rotate polygon points into edge-aligned coordinates ---
+            List<Vector3D> localPts = polygon.Points.Select(p =>
+            {
+                Vector3D v = new Vector3D(p.X - edgeStart.X, p.Y - edgeStart.Y, 0);
+                return new Vector3D(Vector3D.DotProduct(v, edgeUnit), Vector3D.DotProduct(v, perpUnit), 0);
+            }).ToList();
+
+            // --- 3. Compute bounding box in rotated coordinates ---
+            double minAlongEdge = localPts.Min(v => v.X);
+            double maxAlongEdge = localPts.Max(v => v.X);
+            double minPerp = localPts.Min(v => v.Y);
+            double maxPerp = localPts.Max(v => v.Y);
+
+            // --- 4. Determine number of lines across perpendicular direction ---
+            double totalWidth = maxPerp - minPerp;
+            int numLines = (int)Math.Floor(totalWidth / spacing) + 1;
+            double startOffset = minPerp + (totalWidth - (numLines - 1) * spacing) / 2;
+
+            // --- 5. Generate parallel lines (parallel to the edge) ---
+            for (int i = 0; i < numLines; i++)
+            {
+                double offsetPerp = startOffset + i * spacing;
+
+                // Base line offset from edge, parallel to edge
+                Vector3D baseLocal = new Vector3D(0, offsetPerp, 0);
+
+                // Line start and end along the edge direction, clipped to bounding box
+                Vector3D lineStartLocal = new Vector3D(minAlongEdge, baseLocal.Y, 0);
+                Vector3D lineEndLocal = new Vector3D(maxAlongEdge, baseLocal.Y, 0);
+
+                // Convert back to world coordinates
+                Vector3D startWorld = edgeStart.ToVector() + edgeUnit * lineStartLocal.X + perpUnit * lineStartLocal.Y;
+                Vector3D endWorld = edgeStart.ToVector() + edgeUnit * lineEndLocal.X + perpUnit * lineEndLocal.Y;
+
+                rafters.Add((startWorld.ToPoint3D(), endWorld.ToPoint3D()));
+            }
+
+            rafters = GeometryHelper.TrimLinesToPolygon(rafters, polygon);
+            return rafters;
+        }
+
+        public static List<(Point3D Start, Point3D End)> CreateParallelRaftersCentered(
+    Polygon polygon, Point3D edgeStart, Point3D edgeEnd, double spacing = 16)
+        {
+            if (polygon == null || polygon.Points.Count < 2) return null;
+
+            var rafters = new List<(Point3D Start, Point3D End)>();
+
+            // --- 1. Edge vector and perpendicular ---
+            Vector3D edgeVec = new Vector3D(edgeEnd.X - edgeStart.X, edgeEnd.Y - edgeStart.Y, 0);
+            Vector3D edgeUnit = MathHelpers.Normalize(edgeVec);
+            Vector3D perpUnit = new Vector3D(-edgeUnit.Y, edgeUnit.X, 0);
+
+            // --- 2. Transform polygon into local edge-aligned coordinates ---
+            var localPts = polygon.Points.Select(p =>
+            {
+                Vector3D v = new Vector3D(p.X - edgeStart.X, p.Y - edgeStart.Y, 0);
+                return new Vector3D(Vector3D.DotProduct(v, edgeUnit),
+                                    Vector3D.DotProduct(v, perpUnit),
+                                    0);
+            }).ToList();
+
+            // --- 3. Bounding box ---
+            double minAlongEdge = localPts.Min(v => v.X);
+            double maxAlongEdge = localPts.Max(v => v.X);
+            double minPerp = localPts.Min(v => v.Y);
+            double maxPerp = localPts.Max(v => v.Y);
+
+            // --- 4. Determine centered offsets ---
+            double totalWidth = maxPerp - minPerp;
+            int numLines = (int)Math.Floor(totalWidth / spacing) + 1;
+            double usedWidth = (numLines - 1) * spacing;
+            double startOffset = minPerp + (totalWidth - usedWidth) / 2.0;
+
+            // --- 5. Generate parallel lines centered in the box ---
+            for (int i = 0; i < numLines; i++)
+            {
+                double offsetPerp = startOffset + i * spacing;
+
+                Vector3D lineStartLocal = new Vector3D(minAlongEdge, offsetPerp, 0);
+                Vector3D lineEndLocal = new Vector3D(maxAlongEdge, offsetPerp, 0);
+
+                // Convert back to world coordinates
+                Vector3D startWorld = edgeStart.ToVector() + edgeUnit * lineStartLocal.X + perpUnit * lineStartLocal.Y;
+                Vector3D endWorld = edgeStart.ToVector() + edgeUnit * lineEndLocal.X + perpUnit * lineEndLocal.Y;
+
+                rafters.Add((startWorld.ToPoint3D(), endWorld.ToPoint3D()));
+            }
+
+            rafters = GeometryHelper.TrimLinesToPolygon(rafters, polygon);
+            return rafters;
+        }
+
+
+
 
 
         // Helper: check if two line segments intersect
@@ -249,6 +356,4 @@ namespace StructuralPlanner.Services
         public static Vector3D ToVector(this Point3D p) => new Vector3D(p.X, p.Y, p.Z);
         public static Point3D ToPoint3D(this Vector3D v) => new Point3D(v.X, v.Y, v.Z);
     }
-
-
 }

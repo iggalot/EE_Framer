@@ -69,7 +69,7 @@ namespace StructuralPlanner.Services
             for (int i = 0; i < region.Poly.Points.Count - 1; i++)
             {
                 Point p1 = region.Poly.Points[i % region.Poly.Points.Count];
-                Point p2 = region.Poly.Points[i % region.Poly.Points.Count + 1];
+                Point p2 = region.Poly.Points[i + 1 % region.Poly.Points.Count];
 
                 var proj = GeometryHelper.ProjectPointOntoSegment(click, p1, p2);
                 double d = GeometryHelper.Distance(click, proj);

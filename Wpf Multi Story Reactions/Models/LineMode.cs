@@ -4,6 +4,7 @@
     { 
         PerpendicularEdge, 
         Vertical, 
-        Horizontal 
+        Horizontal,
+        ParallelEdge
     }
 }
